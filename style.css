@@ -104,12 +104,13 @@ html, body {
 
 .modal {
     position: fixed;
-    inset: 0;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0,0,0,0.7);
-    z-index: 1000;
+    z-index: 2000;
 }
 
 .modal.hidden {
@@ -118,11 +119,22 @@ html, body {
 
 .modal-content {
     background: #222;
-    padding: 20px;
-    border-radius: 8px;
+    padding: 20px 30px;
+    border-radius: 12px;
     text-align: center;
-    color: #fff;
     max-width: 400px;
+}
+
+.modal-buttons {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-around;
+}
+
+.modal-buttons button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
 }
 
 .level-buttons {
@@ -144,4 +156,13 @@ html, body {
 
 .btn-level:hover {
     background: #2abf7f;
+}
+
+.btn-level.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-level.locked:hover {
+    background: #666;
 }

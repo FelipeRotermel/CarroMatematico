@@ -24,9 +24,21 @@
             <canvas id="game"></canvas>
             <div class="hud">
                 <div class="row top">
-                    <div class="badge" id="velocityBox">👥 10</div>
-                    <button class="btn" id="btnStart">Reiniciar</button>
+                    <div class="badge" id="velocityBox">🚗 10</div>
+                    <button class="btn" id="btnStart">Menu</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de resultado -->
+    <div id="resultModal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="resultTitle"></h2>
+            <p id="resultScore"></p>
+            <div class="modal-buttons">
+                <button id="nextLevelBtn">Próxima fase</button>
+                <button id="backMenuBtn">Menu</button>
             </div>
         </div>
     </div>

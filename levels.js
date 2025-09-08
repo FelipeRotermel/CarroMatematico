@@ -4,32 +4,35 @@
 export const levels = [
     // Level 1
     [
-        { lane: 0, y: -100, type: 'add', value: 10 },
-        { lane: 1, y: -300, type: 'mul', value: 2 },
-        { lane: 2, y: -500, type: 'sub', value: 5 },
-        { lane: 0, y: -700, type: 'div', value: 2 },
-        { lane: 1, y: -900, type: 'add', value: 15 },
-        { lane: 2, y: -1100, type: 'mul', value: 3 },
-        { lane: 1, y: -1300, type: 'sub', value: 10 },
-        { lane: 0, y: -1500, type: 'div', value: 2 },
-        { lane: 2, y: -1700, type: 'add', value: 5 },
-        { lane: 1, y: -1900, type: 'mul', value: 2 },
-        { lane: 0, y: -2100, type: 'sub', value: 5 },
-        { lane: 2, y: -2300, type: 'div', value: 2 },
-        { lane: 1, y: -2500, type: 'add', value: 20 },
-        { lane: 0, y: -2700, type: 'mul', value: 2 },
-        { lane: 2, y: -2900, type: 'sub', value: 10 },
-        { lane: 1, y: -3100, type: 'finish', value: 100 }
+        { lane: 0, y: 0,     type: 'add',    value: 10  },
+        { lane: 1, y: 0,     type: 'sub',    value: 5   },
+        { lane: 2, y: 0,     type: 'mul',    value: 2   },
+        { lane: 0, y: -400,  type: 'mul',    value: 2   },
+        { lane: 1, y: -400,  type: 'div',    value: 4   },
+        { lane: 2, y: -400,  type: 'sub',    value: 5   },
+        { lane: 0, y: -800,  type: 'add',    value: 10  },
+        { lane: 1, y: -800,  type: 'mul',    value: 2   },
+        { lane: 2, y: -800,  type: 'sub',    value: 5   },
+        { lane: 0, y: -1200, type: 'add',    value: 10  },
+        { lane: 1, y: -1200, type: 'mul',    value: 2   },
+        { lane: 2, y: -1200, type: 'sub',    value: 5   },
+        { lane: 1, y: -1300, type: 'finish', value: 800 }
     ],
     // Level 2
     [
-        { lane: 0, y: -100, type: 'mul', value: 3 },
-        { lane: 1, y: -250, type: 'add', value: 20 },
-        { lane: 2, y: -400, type: 'sub', value: 10 },
-        { lane: 0, y: -550, type: 'div', value: 2 },
-        { lane: 1, y: -700, type: 'mul', value: 2 },
-        { lane: 2, y: -850, type: 'add', value: 5 },
-        { lane: 1, y: -1000, type: 'finish', value: 100 }
+        { lane: 0, y: 0,     type: 'mul',    value: 2   },
+        { lane: 1, y: 0,     type: 'sub',    value: 50  },
+        { lane: 2, y: 0,     type: 'div',    value: 4   },
+        { lane: 0, y: -400,  type: 'div',    value: 2   },
+        { lane: 1, y: -400,  type: 'div',    value: 6   },
+        { lane: 2, y: -400,  type: 'sub',    value: 5   },
+        { lane: 0, y: -800,  type: 'add',    value: 50  },
+        { lane: 1, y: -800,  type: 'mul',    value: 2   },
+        { lane: 2, y: -800,  type: 'sub',    value: 50  },
+        { lane: 0, y: -1200, type: 'add',    value: 10  },
+        { lane: 1, y: -1200, type: 'sub',    value: 100 },
+        { lane: 2, y: -1200, type: 'div',    value: 4   },
+        { lane: 1, y: -1300, type: 'finish', value: 200 }
     ],
     // Level 3 (procedural)
     Array.from({length: 100},(_,i)=>{

@@ -2,15 +2,16 @@ import { levels } from './levels.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-
-function resize() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
-}
-resize();
-window.addEventListener('resize', resize);
-
+const resultModal = document.getElementById("resultModal");
+const resultTitle = document.getElementById("resultTitle");
+const resultScore = document.getElementById("resultScore");
+const nextLevelBtn = document.getElementById("nextLevelBtn");
+const backMenuBtn = document.getElementById("backMenuBtn");
 const lanesX = [-0.28, 0, 0.28];
+const playerImg = new Image();
+playerImg.src = "player.png";
+let tiltAngle = 0;
+
 const state = {
     running: false,
     time: 0,
@@ -24,7 +25,8 @@ const state = {
     gates: [],
     finished: false,
     gameOver: false,
-    currentLevel: 0
+    currentLevel: 0,
+    score: 100
 };
 
 const ui = {
@@ -35,50 +37,157 @@ const ui = {
     close: document.getElementById('btnClose')
 };
 
-// Cria botões de fase na modal
+function resize() {
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+}
+resize();
+window.addEventListener('resize', resize);
+
+function loadProgress() {
+    const saved = localStorage.getItem("gameProgress");
+    if (saved) {
+        return JSON.parse(saved);
+    }
+    return { unlocked: [true, ...Array(levels.length-1).fill(false)] };
+}
+
+function saveProgress(progress) {
+    localStorage.setItem("gameProgress", JSON.stringify(progress));
+}
+
+let progress = loadProgress();
+
+function openMenu() {
+    resultModal.classList.add('hidden');
+
+    setTimeout(() => {
+        populateLevelButtons();
+        ui.modal.classList.remove('hidden');
+        ui.modal.style.zIndex = '1300';
+        resultModal.style.zIndex = '1200';
+        state.running = false;
+    }, 40);
+}
+
 function populateLevelButtons(){
     ui.levelButtons.innerHTML = "";
     levels.forEach((_,i)=>{
         const btn = document.createElement('button');
         btn.textContent = `Fase ${i+1}`;
         btn.className = "btn-level";
+
+        if (!progress.unlocked[i]) {
+            btn.disabled = true;
+            btn.classList.add("locked");
+        }
+
         btn.addEventListener('click', ()=>{
+            if (!progress.unlocked[i]) return;
             state.currentLevel = i;
             reset();
+            state.running = true;
             ui.modal.classList.add('hidden');
+            resultModal.classList.add('hidden');
         });
+
         ui.levelButtons.appendChild(btn);
     });
 }
 
-populateLevelButtons();
+function goToNextLevel() {
+    let next = state.currentLevel + 1;
 
-// Fechar modal
+    if (next < levels.length && progress.unlocked[next]) {
+        state.currentLevel = next;
+    } else {
+        let found = -1;
+        for (let i = state.currentLevel + 1; i < levels.length; i++) {
+            if (progress.unlocked[i]) {
+                found = i;
+                break;
+            }
+        }
+
+        if (found >= 0) {
+            state.currentLevel = found;
+        } else {
+            openMenu();
+            return;
+        }
+    }
+
+    reset();
+    state.running = true;
+    state.finished = false;
+    state.gameOver = false;
+
+    populateLevelButtons();
+    saveProgress(progress);
+}
+
+nextLevelBtn.addEventListener('click', () => {
+    nextLevelBtn.disabled = true;
+    setTimeout(()=> nextLevelBtn.disabled = false, 300);
+    goToNextLevel();
+});
+
 ui.close.addEventListener('click', () => {
     ui.modal.classList.add('hidden');
 });
 
-// Reiniciar fase atual
-ui.start.addEventListener('click', () => {
-    reset();
+ui.start.addEventListener("click", () => {
+  openMenu();
 });
 
-// Funções do jogo
 function laneToX(l){
     const m = canvas.width / 2;
     const w = Math.min(canvas.width * 0.6, 700 * devicePixelRatio);
+
     return m + lanesX[l]*w;
+}
+
+function moveLeft(){
+    if (state.lane > 0) {
+        state.lane--;
+        tiltAngle = -0.2;
+    }
+}
+
+function moveRight(){
+    if (state.lane < 2) {
+        state.lane++;
+        tiltAngle = 0.2;
+    }
+}
+
+function updateTilt(){
+    if (tiltAngle > 0) {
+        tiltAngle -= 0.02;
+
+        if (tiltAngle < 0)
+            tiltAngle = 0;
+    }
+
+    if (tiltAngle < 0) {
+        tiltAngle += 0.02;
+
+        if (tiltAngle > 0)
+            tiltAngle = 0;
+    }
 }
 
 function drawPlayer(){
     const px = laneToX(state.lane);
     const py = canvas.height - 120;
 
-    ctx.fillStyle = "#ff0000";
-    ctx.fillRect(px - 25, py - 50, 50, 100);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(tiltAngle);
+    ctx.drawImage(playerImg, -35, -70, 70, 140);
+    ctx.restore();
 
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(px - 20, py - 40, 40, 30);
+    updateTilt();
 }
 
 function drawRoad(){
@@ -88,24 +197,29 @@ function drawRoad(){
     const roadWidth = Math.min(canvas.width * 0.6, 700 * devicePixelRatio);
     const roadX = (canvas.width - roadWidth) / 2;
 
-    // Pista
     ctx.fillStyle = "#555";
     ctx.fillRect(roadX, 0, roadWidth, canvas.height);
 
-    // Linhas brancas centrais
     const laneWidth = roadWidth / 3;
     ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 4;
-    ctx.setLineDash([40, 40]);
+    ctx.lineWidth = 6;
+
+    ctx.setLineDash([]);
+    const segmentLength = 60;
+    const gap = 40;
+    const total = segmentLength + gap;
+    const offset = state.scroll % total;
 
     for (let i = 1; i < 3; i++) {
         const x = roadX + i * laneWidth;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
+
+        for (let y = -total; y < canvas.height + total; y += total) {
+            ctx.beginPath();
+            ctx.moveTo(x, y + offset);
+            ctx.lineTo(x, y + offset + segmentLength);
+            ctx.stroke();
+        }
     }
-    ctx.setLineDash([]);
 }
 
 function drawGate(g){
@@ -119,7 +233,8 @@ function drawGate(g){
         ctx.font = "24px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText("🏁 CHEGADA 🏁", canvas.width/2, y - 15);
-        ctx.fillText(`Velocidade mínima: ${g.value} km/h`, canvas.width/2, y + 25);
+        ctx.fillText(`Pontuação mínima: ${g.value} pts`, canvas.width/2, y + 25);
+
         return;
     }
 
@@ -127,39 +242,67 @@ function drawGate(g){
     ctx.beginPath();
     ctx.arc(x, y, 30, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.fillStyle = "#000";
     ctx.font = "16px sans-serif";
     ctx.textAlign = "center";
     let txt = "";
-    if (g.type === "add") txt = `+${g.value}`;
-    if (g.type === "sub") txt = `-${g.value}`;
-    if (g.type === "mul") txt = `x${g.value}`;
-    if (g.type === "div") txt = `/${g.value}`;
+
+    if (g.type === "add")
+        txt = `+${g.value}`;
+
+    if (g.type === "sub")
+        txt = `-${g.value}`;
+
+    if (g.type === "mul")
+        txt = `x${g.value}`;
+
+    if (g.type === "div")
+        txt = `/${g.value}`;
+
     ctx.fillText(txt, x, y + 5);
 }
 
 function applyGate(g){
-    if (g.hit) return;
+    if (g.hit)
+        return;
+
     g.hit = true;
 
     if (g.type === "finish") {
         state.running = false;
-        const minVel = g.value ?? 100;
-        if (state.velocity >= minVel) {
+        const minScore = g.value;
+
+        if (state.score >= minScore) {
             state.finished = true;
         } else {
             state.gameOver = true;
         }
+
         return;
     }
 
-    if (g.type === "add") state.velocity += g.value;
-    if (g.type === "mul") state.velocity = Math.round(state.velocity * g.value);
-    if (g.type === "sub") state.velocity = Math.max(0, state.velocity - g.value);
-    if (g.type === "div") state.velocity = Math.max(0, Math.round(state.velocity / g.value));
+    if (g.type === "add") {
+        state.score += g.value;
+        state.velocity += g.value;
+    }
 
-    state.velocity = Math.min(state.velocity, 100);
+    if (g.type === "mul") {
+        state.score *= g.value;
+        state.velocity = Math.round(state.velocity * g.value);
+    }
+
+    if (g.type === "sub") {
+        state.score -= g.value;
+        state.velocity = Math.max(0, state.velocity - g.value);
+    }
+
+    if (g.type === "div") {
+        state.score = Math.floor(state.score / g.value);
+        state.velocity = Math.max(0, Math.round(state.velocity / g.value));
+    }
+
+    // Limita a velocidade em 100 km/h
+    state.velocity = Math.min(Math.max(state.velocity, 0), 100);
 
     if (state.velocity <= 0) {
         state.gameOver = true;
@@ -170,15 +313,25 @@ function applyGate(g){
 function collide() {
     const px = state.lane;
     const py = canvas.height - 100;
+
     for (const g of state.gates) {
-        if (!g.hit && g.lane === px && Math.abs((g.y + state.scroll) - py) < 40) {
-            applyGate(g);
+        const dist = Math.abs((g.y + state.scroll) - py);
+
+        if (g.type === 'finish') {
+            const finishThreshold = 60;
+            if (!g.hit && dist < finishThreshold)
+                applyGate(g);
+
+        } else {
+            const gateThreshold = 40;
+
+            if (!g.hit && g.lane === px && dist < gateThreshold)
+                applyGate(g);
         }
     }
 }
 
 function reset() {
-    state.running = true;
     state.time = 0;
     state.scroll = 0;
     state.speed = state.baseSpeed;
@@ -187,17 +340,55 @@ function reset() {
     state.velocity = 20;
     state.finished = false;
     state.gameOver = false;
-
+    state.running = true;
+    state.score = 100;
     const levelGates = levels[state.currentLevel % levels.length];
     state.gates = levelGates.map(g => ({ ...g, hit: false }));
+    resultModal.classList.add("hidden");
+    ui.modal.classList.add("hidden");
+}
+
+function showResultModal(success) {
+    resultTitle.textContent = success ? "🎉 Fase Concluída!" : "❌ Você falhou!";
+    resultScore.textContent = `Pontuação final: ${state.score} pts`;
+
+    // Desbloqueia próxima fase se houver
+    if (success && state.currentLevel + 1 < levels.length && !progress.unlocked[state.currentLevel + 1]) {
+        progress.unlocked[state.currentLevel + 1] = true;
+        saveProgress(progress);
+        populateLevelButtons();
+    }
+
+    state.running = false;
+    nextLevelBtn.style.display = success ? "inline-block" : "none";
+    resultModal.style.zIndex = '1200';
+    ui.modal.style.zIndex = '1100';
+
+    backMenuBtn.onclick = () => {
+        resultModal.classList.add('hidden');
+
+        setTimeout(() => {
+            populateLevelButtons();
+            ui.modal.classList.remove('hidden');
+            ui.modal.style.zIndex = '1300';
+        }, 40);
+    };
+
+    nextLevelBtn.onclick = () => {
+        resultModal.classList.add('hidden');
+        setTimeout(() => goToNextLevel(), 40);
+    };
+
+    resultModal.classList.remove('hidden');
 }
 
 function frame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (state.running) {
-        const roadSpeed = Math.min(Math.sqrt(state.velocity) * 0.3, 10);
+        const roadSpeed = Math.min(Math.sqrt(state.velocity) * 0.15, 10);
         state.scroll += roadSpeed;
+
         collide();
     }
 
@@ -208,27 +399,31 @@ function frame() {
     }
 
     drawPlayer();
-    ui.velocity.textContent = `🚗 ${state.velocity} km/h`;
 
-    if (state.finished) {
-        ctx.fillStyle = '#0f0';
-        ctx.font = "32px sans-serif";
-        ctx.textAlign = 'center';
-        ctx.fillText("🎉 Fase Concluída!", canvas.width / 2, canvas.height / 2);
-    }
-    if (state.gameOver) {
-        ctx.fillStyle = '#f00';
-        ctx.font = "32px sans-serif";
-        ctx.textAlign = 'center';
-        ctx.fillText("❌ Você falhou!", canvas.width / 2, canvas.height / 2);
+    ui.velocity.textContent = `🚗 ${state.velocity} km/h | 🏆 ${state.score} pts`;
+
+    if (!state.running && !resultModal.classList.contains("hidden")) {
+        // modal de resultado aberto — não faz nada
+    } else if (state.finished) {
+        state.running = false;
+        showResultModal(true);
+    } else if (state.gameOver) {
+        state.running = false;
+        showResultModal(false);
     }
 
     requestAnimationFrame(frame);
 }
 
+// Controles
 window.addEventListener('keydown', e => {
-    if(e.code==='ArrowLeft'||e.code==='KeyA'){ state.lane=Math.max(0,state.lane-1); }
-    if(e.code==='ArrowRight'||e.code==='KeyD'){ state.lane=Math.min(2,state.lane+1); }
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA')
+        moveLeft();
+
+    if (e.code === 'ArrowRight' || e.code === 'KeyD')
+        moveRight();
 });
 
+populateLevelButtons();
+openMenu();
 frame();
