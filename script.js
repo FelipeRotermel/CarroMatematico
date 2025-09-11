@@ -1,5 +1,33 @@
 import { levels } from './levels.js';
 
+class Pool {
+    constructor(createFn, size) {
+        this.createFn = createFn;
+        this._pool = [];
+        this.active = [];
+        for (let i = 0; i < size; i++) {
+            this._pool.push(this.createFn());
+        }
+    }
+
+    get() {
+        let obj = this._pool.pop();
+        if (!obj) {
+            obj = this.createFn();
+        }
+        this.active.push(obj);
+        return obj;
+    }
+
+    release(obj) {
+        const index = this.active.indexOf(obj);
+        if (index > -1) {
+            this.active.splice(index, 1);
+            this._pool.push(obj);
+        }
+    }
+}
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const resultModal = document.getElementById("resultModal");
@@ -10,7 +38,13 @@ const backMenuBtn = document.getElementById("backMenuBtn");
 const lanesX = [-0.28, 0, 0.28];
 const playerImg = new Image();
 playerImg.src = "player.png";
+const grassPatternImg = new Image();
+grassPatternImg.src = "background.png";
+grassPatternImg.onload = () => {
+    grassPattern = ctx.createPattern(grassPatternImg, 'repeat');
+};
 let tiltAngle = 0;
+let grassPattern = null;
 
 const state = {
     running: false,
@@ -26,8 +60,11 @@ const state = {
     finished: false,
     gameOver: false,
     currentLevel: 0,
-    score: 100
+    score: 100,
+    screenShake: 0
 };
+
+const starPool = new Pool(() => ({}), 100);
 
 const ui = {
     velocity: document.getElementById('velocityBox'),
@@ -171,12 +208,35 @@ function updateTilt(){
     }
 }
 
+function createStar(x, y, color) {
+    const star = starPool.get();
+    star.x = x;
+    star.y = y;
+    star.color = color;
+    star.size = 20;
+    star.alpha = 1;
+    star.speedY = -2;
+    star.rotation = Math.random() * Math.PI * 2;
+    star.rotationSpeed = (Math.random() - 0.5) * 0.1;
+}
+
+function applyScreenShake(intensity) {
+    state.screenShake = intensity;
+}
+
+function updateScreenShake() {
+    if (state.screenShake > 0) {
+        state.screenShake = Math.max(0, state.screenShake - 0.5);
+    }
+}
+
 function drawPlayer(){
     const px = laneToX(state.lane);
     const py = canvas.height - 120;
 
     ctx.save();
-    ctx.translate(px, py);
+    ctx.translate(px + Math.random() * state.screenShake - state.screenShake / 2,
+                  py + Math.random() * state.screenShake - state.screenShake / 2);
     ctx.rotate(tiltAngle);
     ctx.drawImage(playerImg, -35, -70, 70, 140);
     ctx.restore();
@@ -185,40 +245,54 @@ function drawPlayer(){
 }
 
 function drawRoad(){
-    // Grama no fundo
-    ctx.fillStyle = "#2E7D32";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (grassPattern) {
+        ctx.save();
+        const scrollOffset = state.scroll % grassPatternImg.height;
+        ctx.translate(0, scrollOffset);
+        ctx.fillStyle = grassPattern;
+        ctx.fillRect(0, -scrollOffset, canvas.width, canvas.height);
+        ctx.restore();
+    } else {
+        ctx.fillStyle = "#3F8C42";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
-    // Variáveis para o posicionamento da estrada
+    const pattern = ctx.createPattern(grassPatternImg, 'repeat');
+
+    ctx.save();
+
+    const scrollOffset = state.scroll % grassPatternImg.height;
+    ctx.translate(0, scrollOffset);
+
+    ctx.fillStyle = pattern;
+    ctx.fillRect(0, -scrollOffset, canvas.width, canvas.height);
+    ctx.restore();
+
     const roadWidth = Math.min(canvas.width * 0.6, 700 * devicePixelRatio);
     const roadX = (canvas.width - roadWidth) / 2;
 
-    // Asfalto
-    ctx.fillStyle = "#555";
+    ctx.fillStyle = "#424242";
     ctx.fillRect(roadX, 0, roadWidth, canvas.height);
 
-    // Variáveis para o guard-rail
-    const railWidth = 10;
-    const postWidth = 12;
-    const postHeight = 40;
+    const railWidth = 12;
+    const postWidth = 14;
+    const postHeight = 45;
     const postGap = 80;
     const postScrollTotal = postHeight + postGap;
     const postOffset = state.scroll % postScrollTotal;
 
-    // Guard-rails
-    ctx.fillStyle = "#BDBDBD";
+
+    ctx.fillStyle = "#A0A0A0";
     ctx.fillRect(roadX - railWidth / 2, 0, railWidth, canvas.height);
     ctx.fillRect(roadX + roadWidth - railWidth / 2, 0, railWidth, canvas.height);
 
-    ctx.fillStyle = "#888";
+    ctx.fillStyle = "#757575";
     for (let y = -postScrollTotal; y < canvas.height + postScrollTotal; y += postScrollTotal) {
         const currentY = y + postOffset;
-
         ctx.fillRect(roadX - postWidth / 2, currentY, postWidth, postHeight);
         ctx.fillRect(roadX + roadWidth - postWidth / 2, currentY, postWidth, postHeight);
     }
 
-    // Faixas
     const laneWidth = roadWidth / 3;
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 6;
@@ -231,7 +305,6 @@ function drawRoad(){
 
     for (let i = 1; i < 3; i++) {
         const x = roadX + i * laneWidth;
-
         for (let y = -total; y < canvas.height + total; y += total) {
             ctx.beginPath();
             ctx.moveTo(x, y + offset);
@@ -239,10 +312,37 @@ function drawRoad(){
             ctx.stroke();
         }
     }
+
+    if (state.velocity > 70) {
+        const speedLineCount = Math.floor((state.velocity - 70) / 3);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+
+        const playerLaneX = laneToX(state.lane);
+        const originY = canvas.height - 80;
+
+        for (let i = 0; i < speedLineCount; i++) {
+            const angleOffset = (i / speedLineCount - 0.5) * 0.8;
+            const angle = Math.PI / 2 + angleOffset;
+
+            const len = 80 + (Math.random() * 40);
+
+            const startX = playerLaneX + Math.cos(angle) * (Math.random() * 30);
+            const startY = originY + Math.sin(angle) * (Math.random() * 20);
+
+            const endX = startX + Math.cos(angle) * len * 2;
+            const endY = startY + Math.sin(angle) * len * 2;
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        }
+    }
 }
 
 function drawGate(g){
-    // Se o portal já desapareceu, não faz nada
     if (g.alpha <= 0)
         return;
 
@@ -257,6 +357,7 @@ function drawGate(g){
         ctx.textAlign = "center";
         ctx.fillText("🏁 CHEGADA 🏁", canvas.width/2, y - 15);
         ctx.fillText(`Pontuação mínima: ${g.value} pts`, canvas.width/2, y + 25);
+
         return;
     }
 
@@ -275,10 +376,17 @@ function drawGate(g){
     ctx.textAlign = "center";
     let txt = "";
 
-    if (g.type === "add") txt = `+${g.value}`;
-    if (g.type === "sub") txt = `-${g.value}`;
-    if (g.type === "mul") txt = `x${g.value}`;
-    if (g.type === "div") txt = `/${g.value}`;
+    if (g.type === "add")
+        txt = `+${g.value}`;
+
+    if (g.type === "sub")
+        txt = `-${g.value}`;
+
+    if (g.type === "mul")
+        txt = `x${g.value}`;
+
+    if (g.type === "div")
+        txt = `/${g.value}`;
 
     ctx.fillText(txt, 0, 5);
 
@@ -291,11 +399,13 @@ function applyGate(g){
 
     g.hit = true;
 
-    // NOVO: Encontra todos os portais na mesma altura e ativa o efeito de desaparecer
+    const playerX = laneToX(state.lane);
+    const playerY = canvas.height - 100;
+
     state.gates.forEach(otherGate => {
-          if (otherGate.y === g.y) {
-              otherGate.disappearing = true;
-          }
+        if (otherGate.y === g.y) {
+            otherGate.disappearing = true;
+        }
     });
 
     if (g.type === "finish") {
@@ -314,24 +424,27 @@ function applyGate(g){
     if (g.type === "add") {
         state.score += g.value;
         state.velocity += g.value;
+        createStar(playerX, playerY, "#00FF00");
     }
 
     if (g.type === "mul") {
         state.score *= g.value;
         state.velocity = Math.round(state.velocity * g.value);
+        createStar(playerX, playerY, "#00FF00");
     }
 
     if (g.type === "sub") {
         state.score -= g.value;
         state.velocity = Math.max(0, state.velocity - g.value);
+        applyScreenShake(8);
     }
 
     if (g.type === "div") {
         state.score = Math.floor(state.score / g.value);
         state.velocity = Math.max(0, Math.round(state.velocity / g.value));
+        applyScreenShake(6);
     }
 
-    // Limita a velocidade em 100 km/h
     state.velocity = Math.min(Math.max(state.velocity, 0), 100);
 
     if (state.velocity <= 0) {
@@ -390,7 +503,6 @@ function reset() {
     state.score = 100;
     const levelGates = levels[state.currentLevel % levels.length];
 
-    // Propriedades de animação a cada portal
     state.gates = levelGates.map(g => ({
         ...g,
         hit: false,
@@ -438,16 +550,23 @@ function showResultModal(success) {
 }
 
 function frame() {
+    ctx.save();
+    if (state.screenShake > 0) {
+        ctx.translate(Math.random() * state.screenShake - state.screenShake / 2,
+                      Math.random() * state.screenShake - state.screenShake / 2);
+    }
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (state.running) {
         const roadSpeed = Math.min(Math.sqrt(state.velocity) * 0.15, 10);
         state.scroll += roadSpeed;
-
         collide();
     }
 
     updateGates();
+    updateScreenShake();
+
     drawRoad();
 
     for (const g of state.gates) {
@@ -468,6 +587,7 @@ function frame() {
         showResultModal(false);
     }
 
+    ctx.restore();
     requestAnimationFrame(frame);
 }
 
