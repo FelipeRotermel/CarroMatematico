@@ -5,27 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script type="module" src="script.js"></script>
     <link rel="stylesheet" href="style.css">
-    <title>Hyper-Casual Math Runner</title>
+    <title>Carro matemático</title>
 </head>
 <body>
-    <!-- Modal de seleção de fases -->
+    <!-- Seleção das fases -->
     <div id="levelModal" class="modal">
         <div class="modal-content">
             <h2>Selecionar Fase</h2>
             <div id="levelButtons" class="level-buttons"></div>
             <div class="modal-buttons">
-                <button id="btnClose">Fechar</button>
             </div>
         </div>
     </div>
 
+    <!-- Pontuação e menu -->
     <div class="wrap">
         <div class="game">
             <canvas id="game"></canvas>
             <div class="hud">
                 <div class="row top">
                     <div class="badge" id="velocityBox">🚗 10</div>
-                    <button class="btn" id="btnStart">Menu</button>
+                    <div class="badge" id="scoreBox">
+                        <div class="badge" id="levelIndicator">Fase 1</div>
+                        <button class="btn" id="btnStart">Menu</button>
+                    </div>
                 </div>
             </div>
         </div>
