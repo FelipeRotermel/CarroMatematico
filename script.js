@@ -600,12 +600,12 @@ class MainScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('player_forward', 'forward.png');
-        this.load.image('player_left', 'turnLeft.png');
-        this.load.image('player_right', 'turnRight.png');
-        this.load.image('sky', 'sky.png');
-        this.load.image('nitrous', 'nitrous.png');
-        this.load.image('cone', 'cone.png');
+        this.load.image('player_forward', 'src/img/forward.png');
+        this.load.image('player_left', 'src/img/turnLeft.png');
+        this.load.image('player_right', 'src/img/turnRight.png');
+        this.load.image('sky', 'src/img/sky.png');
+        this.load.image('nitrous', 'src/img/nitrous.png');
+        this.load.image('cone', 'src/img/cone.png');
     }
 
     create() {
