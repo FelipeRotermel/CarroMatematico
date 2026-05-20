@@ -1,35 +1,35 @@
+import * as Phaser from './node_modules/phaser/dist/phaser.esm.js';
 import { levels } from './levels.js';
 
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
 const resultModal = document.getElementById("resultModal");
 const resultTitle = document.getElementById("resultTitle");
 const resultScore = document.getElementById("resultScore");
 const nextLevelBtn = document.getElementById("nextLevelBtn");
 const backMenuBtn = document.getElementById("backMenuBtn");
 const lanesX = [-0.35, 0, 0.35];
-const playerImg = new Image();
-playerImg.src = "player.png";
-const grassPatternImg = new Image();
-grassPatternImg.src = "background.png";
-grassPatternImg.onload = () => {
-    state.grassPattern = ctx.createPattern(grassPatternImg, 'repeat');
-};
+
+// ===== Configuração da câmera pseudo-3D =====
+const HORIZON_RATIO = 0.55;     // posição do horizonte (fração da altura) — maior = mais céu
+const PERSPECTIVE_K = 0.0035;   // intensidade do encolhimento com a profundidade
+const STRIPE_LENGTH = 220;      // comprimento de cada faixa zebrada (em unidades Z)
+const DRAW_DIST = 3000;         // distância máxima de renderização da pista
+const ROAD_SEGMENTS = 80;       // qtd de tiras renderizadas (mais = mais suave)
 
 // O valor das variáveis são definadas na função reset()
 const state = {
     running: false,
     finished: false,
     gameOver: false,
-    grassPattern: null,
     mathOperations: [],
     velocity: 0,
     score: 0,
     scroll: 0,
     lane: 1,
+    lanePos: 1,
     tiltAngle: 0,
     currentLevel: 0,
-    screenShake: 0
+    nitro: 100,       // tanque de nitro (0–100)
+    boosting: false   // true enquanto Shift está pressionado e há nitro
 };
 
 const ui = {
@@ -40,13 +40,7 @@ const ui = {
     levelIndicator: document.getElementById('levelIndicator')
 };
 
-function resize() {
-    canvas.width = window.innerWidth * devicePixelRatio;
-    canvas.height = window.innerHeight * devicePixelRatio;
-}
-
-resize();
-window.addEventListener('resize', resize);
+let scene = null;
 
 /**
  * Carrega o progresso do jogo
@@ -176,214 +170,154 @@ ui.start.addEventListener("click", () => {
 });
 
 /**
- * Converte a lane (0, 1, 2) na posição X do canvas
- * @param {*} currentLine
- * @returns
+ * Largura útil da pista em pixels (no plano próximo)
  */
-function currentLaneToPixels(currentLine) {
-    const midPoint = canvas.width / 2;
-    const widht = Math.min(canvas.width * 0.6, 700 * devicePixelRatio);
-
-    return midPoint + lanesX[currentLine] * widht;
+function getRoadWidth(width) {
+    return Math.min(width * 0.95, 1500);
 }
 
 /**
- * Aplica o efeito de tremor de tela
- * @param {*} intensity
+ * Converte uma lane fracionária (ex: 1.4) na posição X (transição suave)
+ * @param {number} laneFloat
+ * @param {number} width  largura da tela
+ * @param {number} roadW  largura da pista naquela profundidade (default = pista no plano próximo)
+ */
+function laneFloatToPixels(laneFloat, width, roadW) {
+    if (roadW === undefined) roadW = getRoadWidth(width);
+    return width / 2 + (laneFloat - 1) * 0.35 * roadW;
+}
+
+/**
+ * Projeção pseudo-3D: dado um Z relativo (à frente do jogador), retorna
+ * a posição vertical na tela, a escala (1 = perto, 0 = horizonte) e a
+ * largura da pista naquele ponto.
+ */
+function project(relZ, width, height) {
+    const horizonY = height * HORIZON_RATIO;
+    const z = Math.max(0, relZ);
+    const scale = 1 / (1 + z * PERSPECTIVE_K);
+    const screenY = horizonY + (height - horizonY) * scale;
+    const roadW = getRoadWidth(width) * scale;
+    return { screenY, scale, roadW, horizonY };
+}
+
+/**
+ * Aplica o efeito de tremor de tela usando a câmera do Phaser
  */
 function applyScreenShake(intensity) {
-    state.screenShake = intensity;
-}
-
-/**
- * Atualiza o efeito de tremor de tela
- */
-function updateScreenShake() {
-    if (state.screenShake > 0) {
-        state.screenShake = Math.max(0, state.screenShake - 0.5);
+    if (scene) {
+        scene.cameras.main.shake(200, intensity * 0.001);
     }
 }
 
 /**
- * Atualiza o ângulo de inclinação do carro
+ * Atualiza posição lateral interpolada e ângulo de inclinação do carro
  */
-function updateTilt() {
-    state.tiltAngle += state.tiltAngle > 0 ? -0.02 : +0.02;
+function updateLaneAndTilt(factor) {
+    const k = Math.min(1, 0.18 * factor);
+    state.lanePos += (state.lane - state.lanePos) * k;
+    state.tiltAngle = (state.lane - state.lanePos) * 0.7;
 }
 
 /**
- * Desenha o jogador
+ * Cria os GameObjects do Phaser para uma operação matemática
  */
-function drawPlayer() {
-    const px = currentLaneToPixels(state.lane);
-    const py = canvas.height - 120;
-    const screenShake = state.screenShake - state.screenShake / 2;
-
-    ctx.save();
-    ctx.translate(
-        px + Math.random() * screenShake,
-        py + Math.random() * screenShake
-    );
-
-    ctx.rotate(state.tiltAngle);
-    ctx.drawImage(playerImg, -35, -70, 70, 140);
-    ctx.restore();
-
-    updateTilt();
-}
-
-/**
- * Desenha a estrada
- */
-function drawRoad() {
-    ctx.save();
-    const scrollOffset = state.scroll % grassPatternImg.height;
-    ctx.translate(0, scrollOffset);
-    ctx.fillStyle = state.grassPattern;
-    ctx.fillRect(0, -scrollOffset, canvas.width, canvas.height);
-    ctx.restore();
-
-    const pattern = ctx.createPattern(grassPatternImg, 'repeat');
-
-    ctx.save();
-    ctx.translate(0, scrollOffset);
-
-    ctx.fillStyle = pattern;
-    ctx.fillRect(0, -scrollOffset, canvas.width, canvas.height);
-    ctx.restore();
-
-    const roadWidth = Math.min(canvas.width * 0.6, 700 * devicePixelRatio);
-    const roadX = (canvas.width - roadWidth) / 2;
-
-    ctx.fillStyle = "#424242";
-    ctx.fillRect(roadX, 0, roadWidth, canvas.height);
-
-    const railWidth = 12;
-    const postWidth = 14;
-    const postHeight = 45;
-    const postGap = 80;
-    const postScrollTotal = postHeight + postGap;
-    const postOffset = state.scroll % postScrollTotal;
-
-    ctx.fillStyle = "#A0A0A0";
-    ctx.fillRect(
-        roadX - railWidth / 2,
-        0,
-        railWidth,
-        canvas.height
-    );
-
-    ctx.fillRect(
-        roadX + roadWidth - railWidth / 2,
-        0,
-        railWidth,
-        canvas.height
-    );
-
-    ctx.fillStyle = "#757575";
-    for (let y = -postScrollTotal; y < canvas.height + postScrollTotal; y += postScrollTotal) {
-        const currentY = y + postOffset;
-
-        ctx.fillRect(
-            roadX - postWidth / 2,
-            currentY,
-            postWidth,
-            postHeight
-        );
-
-        ctx.fillRect(
-            roadX + roadWidth - postWidth / 2,
-            currentY,
-            postWidth,
-            postHeight
-        );
-    }
-
-    const laneWidth = roadWidth / 3;
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 6;
-    ctx.setLineDash([]);
-
-    const segmentLength = 60;
-    const gap = 40;
-    const total = segmentLength + gap;
-    const offset = state.scroll % total;
-
-    for (let i = 1; i < 3; i++) {
-        const x = roadX + i * laneWidth;
-        for (let y = -total; y < canvas.height + total; y += total) {
-            ctx.beginPath();
-            ctx.moveTo(x, y + offset);
-            ctx.lineTo(x, y + offset + segmentLength);
-            ctx.stroke();
-        }
-    }
-}
-
-/**
- * Desenha a operação matemática
- * @param {*} mathObject
- * @returns
- */
-function drawMathOperation(mathObject) {
-    if (mathObject.alpha <= 0) {
-        return;
-    }
-
-    const x = currentLaneToPixels(mathObject.lane);
-    const y = mathObject.y + state.scroll;
+function createGateSprite(mathObject) {
+    const container = scene.add.container(0, 0);
 
     if (mathObject.type === "finish") {
-        ctx.fillStyle = "#FFD700";
-        ctx.fillRect(0, y, canvas.width, 10);
-        ctx.fillStyle = "#fff";
-        ctx.font = "24px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("🏁 CHEGADA 🏁", canvas.width/2, y - 15);
-        ctx.fillText(`Pontuação mínima: ${mathObject.value} pts`, canvas.width/2, y + 25);
+        // posição relativa ao container (que será movido em updateMathOperations)
+        const line = scene.add.rectangle(0, 0, 200, 10, 0xFFD700);
+        const topText = scene.add.text(0, -25, "🏁 CHEGADA 🏁", {
+            fontSize: '24px', color: '#ffffff', fontFamily: 'sans-serif',
+            stroke: '#000', strokeThickness: 3
+        }).setOrigin(0.5);
+        const bottomText = scene.add.text(0, 25, `Pontuação mínima: ${mathObject.value} pts`, {
+            fontSize: '20px', color: '#ffffff', fontFamily: 'sans-serif',
+            stroke: '#000', strokeThickness: 3
+        }).setOrigin(0.5);
+        container.add([line, topText, bottomText]);
+        container.finishLine = line;
+        container.finishTop = topText;
+        container.finishBottom = bottomText;
+    } else {
+        const isPositive = mathObject.type === "add" || mathObject.type === "mul";
+        const textureKey = isPositive ? 'nitrous' : 'cone';
 
-        return;
+        const icon = scene.add.image(0, 0, textureKey);
+        icon.setDisplaySize(130, 130);
+
+        let txt = "";
+        if (mathObject.type === "add") txt = `+${mathObject.value}`;
+        if (mathObject.type === "sub") txt = `-${mathObject.value}`;
+        if (mathObject.type === "mul") txt = `x${mathObject.value}`;
+        if (mathObject.type === "div") txt = `/${mathObject.value}`;
+
+        const text = scene.add.text(0, 80, txt, {
+            fontSize: '32px', color: '#ffffff', fontFamily: 'sans-serif', fontStyle: 'bold',
+            stroke: '#000', strokeThickness: 5
+        }).setOrigin(0.5);
+
+        container.add([icon, text]);
     }
 
-    ctx.save();
+    mathObject.sprite = container;
+}
 
-    ctx.globalAlpha = mathObject.alpha;
-    ctx.translate(x, y);
-    ctx.scale(mathObject.scale, mathObject.scale);
+/**
+ * Atualiza posição/escala de cada operação matemática usando projeção 3D.
+ * O Z relativo do gate é dado por `-g.y - state.scroll` (gates com y=-1400
+ * ficam 1400 unidades à frente da câmera no início).
+ */
+function updateMathOperations() {
+    const { width, height } = scene.scale;
 
-    ctx.fillStyle = (mathObject.type === "add" || mathObject.type === "mul") ? "#0f0" : "#f00";
-    ctx.beginPath();
-    ctx.arc(0, 0, 30, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#000";
-    ctx.font = "16px sans-serif";
-    ctx.textAlign = "center";
-    let txt = "";
+    state.mathOperations.forEach(g => {
+        if (g.disappearing && g.alpha > 0) {
+            g.alpha -= 0.05;
+            g.scale -= 0.05;
+            if (g.alpha < 0) g.alpha = 0;
+            if (g.scale < 0) g.scale = 0;
+        }
 
-    if (mathObject.type === "add") {
-        txt = `+${mathObject.value}`;
-    }
+        if (!g.sprite) return;
 
-    if (mathObject.type === "sub") {
-        txt = `-${mathObject.value}`;
-    }
+        const relZ = -g.y - state.scroll;
 
-    if (mathObject.type === "mul") {
-        txt = `x${mathObject.value}`;
-    }
+        // fora do alcance: esconde
+        if (relZ > DRAW_DIST || relZ < -120) {
+            g.sprite.setVisible(false);
+            return;
+        }
+        g.sprite.setVisible(true);
 
-    if (mathObject.type === "div") {
-        txt = `/${mathObject.value}`;
-    }
+        const proj = project(relZ, width, height);
+        const finalScale = proj.scale * g.scale;
 
-    ctx.fillText(txt, 0, 5);
-    ctx.restore();
+        if (g.type === "finish") {
+            g.sprite.setPosition(width / 2, proj.screenY);
+            // ajusta a barra dourada para acompanhar a largura projetada da pista
+            if (g.sprite.finishLine) {
+                g.sprite.finishLine.setSize(proj.roadW * 1.4, Math.max(2, 10 * proj.scale));
+                g.sprite.finishTop.setScale(proj.scale);
+                g.sprite.finishTop.setY(-25 * proj.scale - g.sprite.finishLine.height);
+                g.sprite.finishBottom.setScale(proj.scale);
+                g.sprite.finishBottom.setY(25 * proj.scale + g.sprite.finishLine.height);
+            }
+            g.sprite.setAlpha(g.alpha);
+            g.sprite.setDepth(1000 - relZ);
+        } else {
+            const x = laneFloatToPixels(g.lane, width, proj.roadW);
+            g.sprite.setPosition(x, proj.screenY);
+            g.sprite.setScale(finalScale);
+            g.sprite.setAlpha(g.alpha);
+            g.sprite.setDepth(1000 - relZ);
+        }
+    });
 }
 
 /**
  * Aplica a operação matemática em que o jogador colidiu
- * @param {*} mathObject
- * @returns
  */
 function applyMathOperation(mathObject) {
     if (mathObject.hit) {
@@ -392,9 +326,9 @@ function applyMathOperation(mathObject) {
 
     mathObject.hit = true;
 
-    state.mathOperations.forEach(otherMathOperation => {
-        if (otherMathOperation.y === mathObject.y) {
-            otherMathOperation.disappearing = true;
+    state.mathOperations.forEach(other => {
+        if (other.y === mathObject.y) {
+            other.disappearing = true;
         }
     });
 
@@ -423,17 +357,17 @@ function applyMathOperation(mathObject) {
 
     if (mathObject.type === "sub") {
         state.score -= mathObject.value;
-        state.velocity = Math.max(0, state.velocity - mathObject.value);
+        state.velocity = Math.max(80, state.velocity - mathObject.value);
         applyScreenShake(10);
     }
 
     if (mathObject.type === "div") {
         state.score = Math.floor(state.score / mathObject.value);
-        state.velocity = Math.max(0, Math.round(state.velocity / mathObject.value));
+        state.velocity = Math.max(80, Math.round(state.velocity / mathObject.value));
         applyScreenShake(10);
     }
 
-    state.velocity = Math.min(Math.max(state.velocity, 0), 100);
+    state.velocity = Math.min(Math.max(state.velocity, 80), 250);
 
     if (state.score <= 0) {
         state.gameOver = true;
@@ -442,38 +376,25 @@ function applyMathOperation(mathObject) {
 }
 
 /**
- * Atualiza o tamanho das operações matemáticas
- */
-function updateMathOperations() {
-    state.mathOperations.forEach(g => {
-
-        if (g.disappearing && g.alpha > 0) {
-            g.alpha -= g.alpha > 0 ? 0.05 : 0;
-            g.scale -= g.scale > 0 ? 0.05 : 0;
-        }
-    });
-}
-
-/**
- * Verifica a colisão do player com o mathObject
+ * Verifica a colisão do player com cada operação usando Z relativo.
+ * O jogador está em relZ = 0 (plano da câmera). A janela de colisão é
+ * deslocada para a frente (relZ positivo) para que o objeto seja
+ * "tocado" um pouco antes de chegar visualmente sobre o carro.
  */
 function collide() {
     const px = state.lane;
-    const py = canvas.height - 100;
 
     for (const mathObject of state.mathOperations) {
-        const dist = Math.abs((mathObject.y + state.scroll) - py);
+        const relZ = -mathObject.y - state.scroll;
 
         if (mathObject.type === 'finish') {
-            const finishThreshold = 60;
-
-            if (!mathObject.hit && dist < finishThreshold) {
+            // janela ampla para a chegada
+            if (!mathObject.hit && relZ > -40 && relZ < 110) {
                 applyMathOperation(mathObject);
             }
         } else {
-            const gateThreshold = 40;
-
-            if (!mathObject.hit && !mathObject.disappearing && mathObject.lane === px && dist < gateThreshold) {
+            // janela mais à frente: o objeto é ativado antes de chegar visualmente ao carro
+            if (!mathObject.hit && !mathObject.disappearing && mathObject.lane === px && relZ > -20 && relZ < 120) {
                 applyMathOperation(mathObject);
             }
         }
@@ -481,16 +402,124 @@ function collide() {
 }
 
 /**
- * Reinicia tudo
+ * Desenha um quadrilátero (trapézio) preenchido entre duas linhas horizontais
+ */
+function fillTrapezoid(g, color, leftTop, rightTop, yTop, leftBot, rightBot, yBot) {
+    g.fillStyle(color, 1);
+    g.beginPath();
+    g.moveTo(leftTop, yTop);
+    g.lineTo(rightTop, yTop);
+    g.lineTo(rightBot, yBot);
+    g.lineTo(leftBot, yBot);
+    g.closePath();
+    g.fillPath();
+}
+
+/**
+ * Desenha a estrada em pseudo-3D (perspectiva) iterando do horizonte
+ * para frente, criando trapézios coloridos com efeito de zebra.
+ */
+function drawRoad() {
+    if (!scene) return;
+    const { width, height } = scene.scale;
+    const g = scene.roadGfx;
+    g.clear();
+
+    const cx = width / 2;
+    const cameraZ = state.scroll;
+
+    // dimensões dos elementos (em "unidades de pista" — fração da largura total)
+    const RUMBLE_FRAC = 0.04;       // largura da faixa vermelho/branco lateral
+    const LANE_DIVIDER_FRAC = 0.005; // largura da faixa tracejada central
+
+    // segmentos: do mais distante para o mais próximo (ordem de pintura)
+    // o primeiro `prev` é fixado no horizonte com largura zero, para que a
+    // primeira fatia preencha todo o espaço até a linha do horizonte (sem gap)
+    const horizonY = height * HORIZON_RATIO;
+    let prev = { screenY: horizonY, scale: 0, roadW: 0, horizonY };
+
+    for (let i = ROAD_SEGMENTS - 1; i >= 0; i--) {
+        const curRelZ = (i / ROAD_SEGMENTS) * DRAW_DIST;
+        const cur = project(curRelZ, width, height);
+
+        const yT = prev.screenY;
+        const yB = cur.screenY;
+        const halfPrev = prev.roadW / 2;
+        const halfCur = cur.roadW / 2;
+
+        // alterna a cor da pista com base no Z mundial → faixa zebrada
+        const worldZ = cameraZ + curRelZ;
+        const stripeIdx = Math.floor(worldZ / STRIPE_LENGTH);
+        const isDark = (stripeIdx & 1) === 0;
+        const roadColor = isDark ? 0x3a3a3a : 0x484848;
+        const rumbleColor = isDark ? 0xeeeeee : 0xc62828;
+        const grassColor = isDark ? 0x1f6b2a : 0x268a35;
+
+        // grama: faixa horizontal de largura total (a estrada cobrirá o meio)
+        g.fillStyle(grassColor, 1);
+        g.fillRect(0, yT, width, yB - yT + 1);
+
+        // faixa rumble (vermelho/branco) — esquerda
+        fillTrapezoid(
+            g, rumbleColor,
+            cx - halfPrev - prev.roadW * RUMBLE_FRAC, cx - halfPrev, yT,
+            cx - halfCur - cur.roadW * RUMBLE_FRAC, cx - halfCur, yB
+        );
+        // faixa rumble — direita
+        fillTrapezoid(
+            g, rumbleColor,
+            cx + halfPrev, cx + halfPrev + prev.roadW * RUMBLE_FRAC, yT,
+            cx + halfCur, cx + halfCur + cur.roadW * RUMBLE_FRAC, yB
+        );
+
+        // asfalto
+        fillTrapezoid(
+            g, roadColor,
+            cx - halfPrev, cx + halfPrev, yT,
+            cx - halfCur, cx + halfCur, yB
+        );
+
+        // faixas divisórias tracejadas (apenas em tiras escuras, criando o tracejado)
+        if (isDark) {
+            for (const df of [-0.175, 0.175]) {
+                const halfWP = LANE_DIVIDER_FRAC * prev.roadW;
+                const halfWC = LANE_DIVIDER_FRAC * cur.roadW;
+                const xpC = cx + df * prev.roadW;
+                const xcC = cx + df * cur.roadW;
+                fillTrapezoid(
+                    g, 0xffffff,
+                    xpC - halfWP, xpC + halfWP, yT,
+                    xcC - halfWC, xcC + halfWC, yB
+                );
+            }
+        }
+
+        prev = cur;
+    }
+
+}
+
+/**
+ * Reinicia o jogo no nível atual
  */
 function reset() {
     state.scroll = 0;
     state.lane = 1;
+    state.lanePos = 1;
     state.velocity = 100;
+    state.nitro = 100;
+    state.boosting = false;
     state.finished = false;
     state.gameOver = false;
     state.running = true;
     state.score = 100;
+    state.tiltAngle = 0;
+
+    // destrói sprites antigas
+    state.mathOperations.forEach(g => {
+        if (g.sprite) g.sprite.destroy();
+    });
+
     const levelGates = levels[state.currentLevel % levels.length];
 
     state.mathOperations = levelGates.map(g => ({
@@ -498,8 +527,13 @@ function reset() {
         hit: false,
         disappearing: false,
         alpha: 1,
-        scale: 1
+        scale: 1,
+        sprite: null
     }));
+
+    if (scene) {
+        state.mathOperations.forEach(createGateSprite);
+    }
 
     resultModal.classList.add("hidden");
     ui.modal.classList.add("hidden");
@@ -545,79 +579,182 @@ function showResultModal(success) {
     resultModal.classList.remove('hidden');
 }
 
-/**
- * Carrega TUDO a cada momento (muito ruim)
- */
-function frame() {
-    ctx.save();
-    if (state.screenShake > 0) {
-        let screenShake = state.screenShake - state.screenShake / 2;
-
-        ctx.translate(
-            Math.random() * screenShake,
-            Math.random() * screenShake
-        );
-    }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (state.running) {
-        const roadSpeed = Math.min(Math.sqrt(state.velocity) * 0.15, 10);
-        state.scroll += roadSpeed;
-
-        collide();
-    }
-
-    updateMathOperations();
-    updateScreenShake();
-    drawRoad();
-    drawPlayer();
-
-    for (const mathObject of state.mathOperations) {
-        drawMathOperation(mathObject);
-    }
-
-    ui.velocity.textContent = `🚗 ${state.velocity} km/h | 🏆 ${state.score} pts`;
-
-    if (!state.running && !resultModal.classList.contains("hidden")) {
-        // modal de resultado aberto — não faz nada
-
-    } else if (state.finished) {
-        state.running = false;
-        showResultModal(true);
-
-    } else if (state.gameOver) {
-        state.running = false;
-        showResultModal(false);
-    }
-
-    ctx.restore();
-    requestAnimationFrame(frame);
-}
-
 function moveLeft() {
     if (state.lane > 0) {
         state.lane--;
-        state.tiltAngle = -0.3;
     }
 }
 
 function moveRight() {
     if (state.lane < 2) {
         state.lane++;
-        state.tiltAngle = 0.3;
     }
 }
 
-// Controles
-window.addEventListener('keydown', e => {
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA')
-        moveLeft();
+/**
+ * Cena principal do Phaser
+ */
+class MainScene extends Phaser.Scene {
+    constructor() {
+        super('main');
+    }
 
-    if (e.code === 'ArrowRight' || e.code === 'KeyD')
-        moveRight();
+    preload() {
+        this.load.image('player_forward', 'forward.png');
+        this.load.image('player_left', 'turnLeft.png');
+        this.load.image('player_right', 'turnRight.png');
+        this.load.image('sky', 'sky.png');
+        this.load.image('nitrous', 'nitrous.png');
+        this.load.image('cone', 'cone.png');
+    }
+
+    create() {
+        scene = this;
+        const { width, height } = this.scale;
+        const horizonY = height * HORIZON_RATIO;
+
+        // céu acima do horizonte (imagem fixa esticada para preencher a área)
+        this.sky = this.add.image(0, 0, 'sky').setOrigin(0, 0);
+        this.sky.setDisplaySize(width, horizonY);
+
+        // estrada (graphics redesenhado a cada frame, em perspectiva)
+        this.roadGfx = this.add.graphics();
+        this.roadGfx.setDepth(10);
+
+        // jogador
+        this.player = this.add.image(0, 0, 'player_forward');
+        this.player.setDisplaySize(450, 300);
+        this.player.setDepth(500); // entre as gates próximas e distantes
+
+        // entradas (troca de pista — instantânea)
+        this.input.keyboard.on('keydown-LEFT', moveLeft);
+        this.input.keyboard.on('keydown-A', moveLeft);
+        this.input.keyboard.on('keydown-RIGHT', moveRight);
+        this.input.keyboard.on('keydown-D', moveRight);
+
+        // entradas contínuas (acelerar/frear/nitro)
+        this.keys = this.input.keyboard.addKeys({
+            up: Phaser.Input.Keyboard.KeyCodes.UP,
+            w: Phaser.Input.Keyboard.KeyCodes.W,
+            down: Phaser.Input.Keyboard.KeyCodes.DOWN,
+            s: Phaser.Input.Keyboard.KeyCodes.S,
+            shift: Phaser.Input.Keyboard.KeyCodes.SHIFT
+        });
+
+        // recria sprites das fases ao iniciar a cena
+        if (state.mathOperations.length > 0) {
+            state.mathOperations.forEach(createGateSprite);
+        }
+
+        // ajusta os elementos de fundo quando a janela é redimensionada
+        this.scale.on('resize', (gameSize) => {
+            const hY = gameSize.height * HORIZON_RATIO;
+            this.sky.setDisplaySize(gameSize.width, hY);
+        });
+    }
+
+    update(time, delta) {
+        const { width, height } = this.scale;
+        const factor = delta / 16.6667;
+
+        if (state.running) {
+            // acelerar / frear / nitro
+            const accel = this.keys.up.isDown || this.keys.w.isDown;
+            const brake = this.keys.down.isDown || this.keys.s.isDown;
+            const boost = this.keys.shift.isDown && state.nitro > 0;
+            state.boosting = boost;
+
+            if (boost) {
+                // nitro: empurra a velocidade além do limite normal (até 350)
+                state.velocity = Math.min(350, state.velocity + 2.2 * factor);
+                state.nitro = Math.max(0, state.nitro - 0.7 * factor);
+            } else if (accel) {
+                state.velocity = Math.min(250, state.velocity + 0.6 * factor);
+            }
+
+            if (brake) {
+                state.velocity = Math.max(80, state.velocity - 1.2 * factor);
+            }
+
+            // regenera nitro quando não está usando
+            if (!boost) {
+                state.nitro = Math.min(100, state.nitro + 0.25 * factor);
+            }
+
+            // velocidade decai naturalmente para o limite normal quando o nitro acaba
+            if (state.velocity > 250 && !boost) {
+                state.velocity = Math.max(250, state.velocity - 1.5 * factor);
+            }
+
+            const roadSpeed = Math.min(Math.sqrt(state.velocity) * 0.15, 12);
+            state.scroll += roadSpeed * factor;
+            collide();
+        }
+
+        drawRoad();
+        updateMathOperations();
+        updateLaneAndTilt(factor);
+
+        // jogador (no plano próximo — usa largura cheia da pista)
+        const px = laneFloatToPixels(state.lanePos, width);
+        const py = height - 180; // subi 60px para cima
+        this.player.setPosition(px, py);
+
+        // sombra do jogador: círculo achatado usando fillCircle com scaling
+        // desenhamos após o carro para garantir ordem correta
+        const shadowY = py + 50;
+        const shadowRadius = 90;
+        this.roadGfx.fillStyle(0x000000, 0.5);
+        // simula elipse achatada usando círculo com scaleY menor
+        this.roadGfx.save();
+        this.roadGfx.translateCanvas(px, shadowY);
+        this.roadGfx.scaleCanvas(1, 0.4); // achata na vertical
+        this.roadGfx.fillCircle(0, 0, shadowRadius);
+        this.roadGfx.restore();
+
+        // troca o sprite do carro de acordo com a direção da curva
+        const TURN_THRESHOLD = 0.05;
+        const diff = state.lane - state.lanePos;
+        let key = 'player_forward';
+        if (diff > TURN_THRESHOLD) key = 'player_right';
+        else if (diff < -TURN_THRESHOLD) key = 'player_left';
+        if (this.player.texture.key !== key) {
+            this.player.setTexture(key);
+        }
+
+        // HUD
+        const vel = Math.round(state.velocity);
+        const nitro = Math.round(state.nitro);
+        const boostIcon = state.boosting ? '🔥 ' : '';
+        const accelIcon = (!state.boosting && this.keys && (this.keys.up.isDown || this.keys.w.isDown)) ? '💨 ' : '';
+        ui.velocity.textContent = `${boostIcon}${accelIcon}🚗 ${vel} km/h | ⚡ ${nitro}% | 🏆 ${state.score} pts`;
+
+        if (!state.running && !resultModal.classList.contains("hidden")) {
+            // modal de resultado aberto — não faz nada
+        } else if (state.finished) {
+            state.running = false;
+            state.finished = false;
+            showResultModal(true);
+        } else if (state.gameOver) {
+            state.running = false;
+            state.gameOver = false;
+            showResultModal(false);
+        }
+    }
+}
+
+const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: 'game',
+    backgroundColor: '#0e1224',
+    scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: '100%',
+        height: '100%'
+    },
+    scene: [MainScene]
 });
 
 populateLevelButtons();
 openMenu();
-frame();
