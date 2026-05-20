@@ -1,4 +1,4 @@
-import * as Phaser from './node_modules/phaser/dist/phaser.esm.js';
+import * as Phaser from 'https://esm.run/phaser@3.80.1';
 import { levels } from './levels.js';
 
 const resultModal = document.getElementById("resultModal");
