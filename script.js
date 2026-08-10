@@ -29,9 +29,15 @@ const state = {
     lanePos: 1,
     tiltAngle: 0,
     currentLevel: 0,
-    nitro: 1000,       // tanque de nitro (0–100)
+    nitro: 1000,       // tanque de nitro (0–1000)
     boosting: false,   // true enquanto Shift está pressionado e há nitro
-    volume: 0.5        // volume da música de fundo (0–1)
+    volume: 0.5,       // volume da música de fundo (0–1)
+    // ===== SESSÃO =====
+    playerName: '',
+    lives: 3,
+    totalScore: 0,
+    sessionActive: false,
+    completedLevels: []   // fases já pontuadas nesta sessão
 };
 
 const ui = {
@@ -39,6 +45,7 @@ const ui = {
     modal: document.getElementById('levelModal'),
     levelButtons: document.getElementById('levelButtons'),
     levelIndicator: document.getElementById('levelIndicator'),
+    livesIndicator: document.getElementById('livesIndicator'),
     
     scoreBar: document.getElementById('scoreBar'),
     scoreLabel: document.getElementById('scoreLabel'),
@@ -48,6 +55,22 @@ const ui = {
     speedLabel: document.getElementById('speedLabel')
 };
 
+const nameModal        = document.getElementById('nameModal');
+const playerNameInput  = document.getElementById('playerNameInput');
+const startSessionBtn  = document.getElementById('startSessionBtn');
+const logoutBtn        = document.getElementById('logoutBtn');
+const retryBtn         = document.getElementById('retryBtn');
+const scoreboardModal  = document.getElementById('scoreboardModal');
+const scoreboardBody   = document.getElementById('scoreboardBody');
+const scoreboardTitle  = document.getElementById('scoreboardTitle');
+const scoreboardSubtitle = document.getElementById('scoreboardSubtitle');
+const scoreboardIcon   = document.getElementById('scoreboardIcon');
+const newPlayerBtn     = document.getElementById('newPlayerBtn');
+const menuPlayerName   = document.getElementById('menuPlayerName');
+const menuLives        = document.getElementById('menuLives');
+const menuTotalScore   = document.getElementById('menuTotalScore');
+const resultLives      = document.getElementById('resultLives');
+
 let scene = null;
 
 /**
@@ -56,19 +79,12 @@ let scene = null;
  */
 function loadProgress() {
     const saved = localStorage.getItem("gameProgress");
-
-    if (saved) {
-        return JSON.parse(saved);
-    }
-
-    return {
-        unlocked: [true, ...Array(levels.length-1).fill(false)]
-    };
+    if (saved) return JSON.parse(saved);
+    return { unlocked: [true, ...Array(levels.length - 1).fill(false)] };
 }
 
 /**
  * Salva o progresso do jogo
- * @param {*} progress
  */
 function saveProgress(progress) {
     localStorage.setItem("gameProgress", JSON.stringify(progress));
@@ -76,15 +92,178 @@ function saveProgress(progress) {
 
 let progress = loadProgress();
 
+
+// ===== SCOREBOARD =====
+
 /**
- * Abre o menu
+ * Carrega o scoreboard do localStorage
+ */
+function loadScoreboard() {
+    const saved = localStorage.getItem('carro_scoreboard');
+    return saved ? JSON.parse(saved) : [];
+}
+
+/**
+ * Salva uma nova entrada no scoreboard
+ */
+function saveToScoreboard(entry) {
+    const board = loadScoreboard();
+    board.push(entry);
+    board.sort((a, b) => b.score - a.score);
+    const trimmed = board.slice(0, 50);
+    localStorage.setItem('carro_scoreboard', JSON.stringify(trimmed));
+    return trimmed;
+}
+
+/**
+ * Retorna corações de vidas restantes
+ */
+function livesHearts(n) {
+    return '❤️'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, 3 - n));
+}
+
+/**
+ * Atualiza o indicador de vidas no HUD
+ */
+function updateLivesHUD() {
+    if (ui.livesIndicator) {
+        ui.livesIndicator.textContent = livesHearts(state.lives);
+    }
+}
+
+/**
+ * Atualiza as informações do menu de fases
+ */
+function updateMenuInfo() {
+    if (menuPlayerName) menuPlayerName.textContent = state.playerName;
+    if (menuLives) menuLives.textContent = livesHearts(state.lives);
+    if (menuTotalScore) menuTotalScore.textContent = `Total: ${state.totalScore} pts`;
+}
+
+// ===== SESSÃO =====
+
+/**
+ * Encerra a sessão do jogador atual:
+ * reason = 'victory' | 'gameover' | 'logout'
+ */
+function endSession(reason) {
+    state.running = false;
+    state.sessionActive = false;
+
+    // Acumula pontuação ao fazer logout no meio (não duplica em vitória/gameover
+    // pois esses caminhos já acumularam antes de chegar aqui)
+    const finalScore = state.totalScore;
+
+    const entry = {
+        name: state.playerName,
+        score: finalScore,
+        reason,
+        date: new Date().toLocaleDateString('pt-BR')
+    };
+    const board = saveToScoreboard(entry);
+
+    // Configura visual do scoreboard conforme motivo
+    let icon = '🏅';
+    let title = 'Placar de Líderes';
+    let subtitle = `${state.playerName} — ${finalScore} pontos salvos.`;
+
+    if (reason === 'victory') {
+        icon = '🏆';
+        title = '🎉 Vitória!';
+        subtitle = `Parabéns, ${state.playerName}! Você completou todas as fases com ${finalScore} pontos!`;
+        scoreboardIcon.className = 'scoreboard-icon victory';
+    } else if (reason === 'gameover') {
+        icon = '💀';
+        title = 'Game Over';
+        subtitle = `Suas 3 vidas acabaram. Pontuação final: ${finalScore} pts.`;
+        scoreboardIcon.className = 'scoreboard-icon gameover';
+    } else {
+        icon = '🚪';
+        title = 'Saída do Usuário';
+        subtitle = `${state.playerName} saiu com ${finalScore} pts acumulados.`;
+        scoreboardIcon.className = 'scoreboard-icon';
+    }
+
+    scoreboardIcon.textContent = icon;
+    scoreboardTitle.textContent = title;
+    scoreboardSubtitle.textContent = subtitle;
+
+    // Popula a tabela
+    scoreboardBody.innerHTML = '';
+    board.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        const isCurrent = (row.name === entry.name && row.score === entry.score && row.reason === entry.reason);
+        if (isCurrent) tr.classList.add('current-player');
+
+        const medals = ['🥇', '🥈', '🥉'];
+        const rankCell = medals[idx] ? `<span class="rank-medal">${medals[idx]}</span>` : `${idx + 1}º`;
+
+        tr.innerHTML = `<td>${rankCell}</td><td>${row.name}</td><td>${row.score} pts</td>`;
+        scoreboardBody.appendChild(tr);
+    });
+
+    // Exibe o modal
+    ui.modal.classList.add('hidden');
+    resultModal.classList.add('hidden');
+    scoreboardModal.classList.remove('hidden');
+    scoreboardModal.style.zIndex = '2100';
+}
+
+/**
+ * Configura e exibe a modal de registro de jogador
+ */
+function showNameModal() {
+    scoreboardModal.classList.add('hidden');
+    ui.modal.classList.add('hidden');
+    resultModal.classList.add('hidden');
+    nameModal.classList.remove('hidden');
+    nameModal.style.zIndex = '2200';
+    playerNameInput.value = '';
+    setTimeout(() => playerNameInput.focus(), 80);
+}
+
+/**
+ * Inicia uma nova sessão com o nome digitado
+ */
+function startSession() {
+    const name = playerNameInput.value.trim();
+    if (!name) {
+        playerNameInput.focus();
+        playerNameInput.style.borderColor = '#ff6b6b';
+        setTimeout(() => playerNameInput.style.borderColor = '', 800);
+        return;
+    }
+
+    state.playerName = name;
+    state.lives = 3;
+    state.totalScore = 0;
+    state.sessionActive = true;
+    state.currentLevel = 0;
+    state.completedLevels = [];
+
+    // Reseta progresso de fases para a nova sessão
+    progress = { unlocked: [true, ...Array(levels.length - 1).fill(false)] };
+    saveProgress(progress);
+
+    nameModal.classList.add('hidden');
+    updateMenuInfo();
+    updateLivesHUD();
+    openMenu();
+}
+
+/**
+ * Abre o menu (só se houver sessão ativa)
  */
 function openMenu() {
+    if (!state.sessionActive) {
+        showNameModal();
+        return;
+    }
     resultModal.classList.add('hidden');
 
     setTimeout(() => {
         populateLevelButtons();
-
+        updateMenuInfo();
         ui.modal.classList.remove('hidden');
         ui.modal.style.zIndex = '1300';
         resultModal.style.zIndex = '1200';
@@ -385,8 +564,27 @@ function applyMathOperation(mathObject) {
         state.gameOver = true;
         state.running = false;
     }
+
+    // Toca SFX conforme o tipo do gate
+    playGateSfx(mathObject);
 }
 
+/**
+ * Retorna true se o objeto usa a textura de nitro (add/mul = bom)
+ * ou false se usa a textura de cone (sub/div = ruim).
+ */
+function isGoodGate(g) {
+    return g.type === 'add' || g.type === 'mul';
+}
+
+/**
+ * Toca o efeito sonoro correto para a gate colidida
+ */
+function playGateSfx(g) {
+    if (!scene) return;
+    const key = isGoodGate(g) ? 'sfx_right' : 'sfx_wrong';
+    scene.sound.play(key, { volume: 0.24 });
+}
 /**
  * Verifica a colisão do player com cada operação usando Z relativo.
  * O jogador está em relZ = 0 (plano da câmera). A janela de colisão é
@@ -580,47 +778,101 @@ function reset() {
  * @param {*} success
  */
 function showResultModal(success) {
-    resultTitle.textContent = success ? "🎉 Fase Concluída!" : "❌ Você falhou!";
-    resultScore.textContent = `Pontuação final: ${state.score} pts`;
+    state.running = false;
 
-    // Desbloqueia próxima fase se houver
-    if (success && state.currentLevel + 1 < levels.length && !progress.unlocked[state.currentLevel + 1]) {
-        progress.unlocked[state.currentLevel + 1] = true;
+    if (success) {
+        // Só acumula pontuação se a fase ainda não foi concluída nesta sessão
+        const alreadyCompleted = state.completedLevels.includes(state.currentLevel);
+        if (!alreadyCompleted) {
+            state.totalScore += state.score;
+            state.completedLevels.push(state.currentLevel);
+        }
 
-        saveProgress(progress);
-        populateLevelButtons();
+        // Desbloqueia próxima fase
+        if (state.currentLevel + 1 < levels.length && !progress.unlocked[state.currentLevel + 1]) {
+            progress.unlocked[state.currentLevel + 1] = true;
+            saveProgress(progress);
+        }
+
+        // Verifica se era a última fase → Vitória!
+        if (state.currentLevel + 1 >= levels.length) {
+            setTimeout(() => endSession('victory'), 400);
+            return;
+        }
+
+        resultTitle.textContent = '🎉 Fase Concluída!';
+        resultScore.textContent = `Pontuação da fase: ${state.score} pts  |  Total: ${state.totalScore} pts`;
+        if (resultLives) resultLives.textContent = `Vidas restantes: ${livesHearts(state.lives)}`;
+
+        nextLevelBtn.classList.remove('hidden');
+        nextLevelBtn.style.display = 'block';
+        retryBtn.classList.add('hidden');
+
+        nextLevelBtn.onclick = () => {
+            resultModal.classList.add('hidden');
+            setTimeout(() => goToNextLevel(), 40);
+        };
+
+    } else {
+        // Falha: perde uma vida
+        state.lives--;
+
+        // Animação de perda de vida no HUD
+        if (ui.livesIndicator) {
+            ui.livesIndicator.classList.remove('pulse');
+            void ui.livesIndicator.offsetWidth; // reflow para reiniciar animação
+            ui.livesIndicator.classList.add('pulse');
+        }
+        updateLivesHUD();
+
+        // Verifica game over
+        if (state.lives <= 0) {
+            setTimeout(() => endSession('gameover'), 400);
+            return;
+        }
+
+        resultTitle.textContent = '❌ Você falhou!';
+        resultScore.textContent = `Pontuação da fase: ${state.score} pts  |  Total acumulado: ${state.totalScore} pts`;
+        if (resultLives) resultLives.textContent = `Vidas restantes: ${livesHearts(state.lives)}`;
+
+        nextLevelBtn.classList.add('hidden');
+        nextLevelBtn.style.display = 'none';
+        retryBtn.classList.remove('hidden');
+
+        retryBtn.onclick = () => {
+            resultModal.classList.add('hidden');
+            setTimeout(() => {
+                reset();
+                state.running = true;
+            }, 40);
+        };
     }
 
-    state.running = false;
-    nextLevelBtn.style.display = success ? "inline-block" : "none";
     resultModal.style.zIndex = '1200';
     ui.modal.style.zIndex = '1100';
 
     backMenuBtn.onclick = () => {
         resultModal.classList.add('hidden');
-
         setTimeout(() => {
             populateLevelButtons();
+            updateMenuInfo();
             ui.modal.classList.remove('hidden');
             ui.modal.style.zIndex = '1300';
         }, 40);
-    };
-
-    nextLevelBtn.onclick = () => {
-        resultModal.classList.add('hidden');
-        setTimeout(() => goToNextLevel(), 40);
     };
 
     resultModal.classList.remove('hidden');
 }
 
 function moveLeft() {
+    if (!state.running) return;
     if (state.lane > 0) {
         state.lane--;
     }
 }
 
 function moveRight() {
+    if (!state.running) return;
     if (state.lane < 2) {
         state.lane++;
     }
@@ -645,6 +897,8 @@ class MainScene extends Phaser.Scene {
         this.load.image('cone', 'src/img/objects/cone.png');
         this.load.image('none', 'src/img/objects/none.png');
         this.load.audio('music', 'src/aud/ost1.mp3');
+        this.load.audio('sfx_right', 'src/aud/right.wav');
+        this.load.audio('sfx_wrong', 'src/aud/wrong.wav');
         for (let i = 1; i <= 10; i++) {
             this.load.image(`foward${i}`, `src/img/car/foward/foward${i}.png`);
             this.load.image(`left${i}`, `src/img/car/left/left${i}.png`);
@@ -713,6 +967,10 @@ class MainScene extends Phaser.Scene {
             s: Phaser.Input.Keyboard.KeyCodes.S,
             shift: Phaser.Input.Keyboard.KeyCodes.SHIFT
         });
+
+        // Impede que o Phaser bloqueie teclas em inputs HTML (como W, S, etc.)
+        this.input.keyboard.preventDefault = false;
+        this.input.keyboard.clearCaptures();
 
         // recria sprites das fases ao iniciar a cena
         if (state.mathOperations.length > 0) {
@@ -852,8 +1110,15 @@ class MainScene extends Phaser.Scene {
         const thresholdWarn = (nitro < 10) ? ' (BLOQUEADO)' : '';
         if (ui.nitroLabel) ui.nitroLabel.textContent = `⚡ NITRO: ${nitro}%${thresholdWarn}`;
 
-        // 3. Pontuação (Score / TargetScore)
-        const scorePercent = Math.min(100, Math.max(0, (score / target) * 100));
+        // 3. Pontuação (Score / TargetScore - considerando que o jogador inicia com 100)
+        let scorePercent = 0;
+        if (target > 100) {
+            const currentGained = Math.max(0, score - 100);
+            const targetGained = target - 100;
+            scorePercent = Math.min(100, Math.max(0, (currentGained / targetGained) * 100));
+        } else {
+            scorePercent = score >= target ? 100 : Math.min(100, Math.max(0, (score / target) * 100));
+        }
         if (ui.scoreBar) ui.scoreBar.style.width = `${scorePercent}%`;
         if (ui.scoreLabel) ui.scoreLabel.textContent = `🏆 PONTOS: ${score} / ${target}`;
 
@@ -886,26 +1151,106 @@ const game = new Phaser.Game({
 
 // Controle de Volume Customizado
 const volumeSlider = document.getElementById('volumeSlider');
-const volumeValue = document.getElementById('volumeValue');
+const volumeValueEl = document.getElementById('volumeValue');
 
-const savedVolume = localStorage.getItem("gameVolume");
+const savedVolume = localStorage.getItem('gameVolume');
 state.volume = savedVolume !== null ? parseFloat(savedVolume) : 0.5;
 
 if (volumeSlider) {
     volumeSlider.value = state.volume;
-    volumeValue.textContent = `${Math.round(state.volume * 100)}%`;
-    
+    volumeValueEl.textContent = `${Math.round(state.volume * 100)}%`;
+
     volumeSlider.addEventListener('input', (e) => {
         const vol = parseFloat(e.target.value);
         state.volume = vol;
-        volumeValue.textContent = `${Math.round(vol * 100)}%`;
-        
-        if (scene && scene.music) {
-            scene.music.setVolume(vol);
-        }
-        localStorage.setItem("gameVolume", vol);
+        volumeValueEl.textContent = `${Math.round(vol * 100)}%`;
+        if (scene && scene.music) scene.music.setVolume(vol);
+        localStorage.setItem('gameVolume', vol);
     });
 }
 
-populateLevelButtons();
-openMenu();
+// ===== EVENTOS DAS NOVAS MODAIS =====
+
+// Botão Jogar na modal de nome
+startSessionBtn.addEventListener('click', startSession);
+
+// Enter e propagação no input de nome
+playerNameInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') startSession();
+});
+playerNameInput.addEventListener('keyup', (e) => e.stopPropagation());
+playerNameInput.addEventListener('keypress', (e) => e.stopPropagation());
+
+// Botão Sair do Usuário no menu de fases
+logoutBtn.addEventListener('click', () => {
+    ui.modal.classList.add('hidden');
+    endSession('logout');
+});
+
+// Botão Novo Jogador no scoreboard
+newPlayerBtn.addEventListener('click', () => {
+    scoreboardModal.classList.add('hidden');
+    showNameModal();
+});
+
+// Inicia exibindo a modal de nome
+showNameModal();
+
+// ===== RESET DO SCOREBOARD COM SENHA =====
+
+const resetScoreboardBtn = document.getElementById('resetScoreboardBtn');
+
+resetScoreboardBtn.addEventListener('click', () => {
+    // Cria overlay de senha
+    const overlay = document.createElement('div');
+    overlay.className = 'password-overlay';
+    overlay.innerHTML = `
+        <div class="password-box">
+            <h3>🔒 Acesso Restrito</h3>
+            <p>Digite a senha para resetar o placar</p>
+            <input type="password" class="password-input" id="passwordInput"
+                   maxlength="10" placeholder="••••" autocomplete="off" />
+            <div class="password-actions">
+                <button id="passwordCancelBtn">Cancelar</button>
+                <button id="passwordConfirmBtn">Confirmar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const pwInput  = overlay.querySelector('#passwordInput');
+    const confirmB = overlay.querySelector('#passwordConfirmBtn');
+    const cancelB  = overlay.querySelector('#passwordCancelBtn');
+
+    setTimeout(() => pwInput.focus(), 80);
+
+    function closeOverlay() {
+        overlay.remove();
+    }
+
+    function tryConfirm() {
+        if (pwInput.value === '0451') {
+            localStorage.removeItem('carro_scoreboard');
+            // Re-renderiza a tabela vazia
+            scoreboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:rgba(234,242,255,0.4)">Placar zerado.</td></tr>';
+            closeOverlay();
+        } else {
+            pwInput.classList.remove('error');
+            void pwInput.offsetWidth;
+            pwInput.classList.add('error');
+            pwInput.value = '';
+            setTimeout(() => pwInput.classList.remove('error'), 400);
+        }
+    }
+
+    confirmB.addEventListener('click', tryConfirm);
+    cancelB.addEventListener('click', closeOverlay);
+    pwInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') tryConfirm();
+        if (e.key === 'Escape') closeOverlay();
+    });
+    pwInput.addEventListener('keyup', (e) => e.stopPropagation());
+    pwInput.addEventListener('keypress', (e) => e.stopPropagation());
+});

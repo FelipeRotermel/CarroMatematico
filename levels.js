@@ -4,10 +4,6 @@
 export const levels = [
     // Level 1 - Sum
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'add',    value: 10   },
         { lane: 1, y: -400,  type: 'add',    value: 30   },
         { lane: 2, y: -400,  type: 'add',    value: 20   },
@@ -28,10 +24,6 @@ export const levels = [
     ],
     // Level 2 - Sum + Sub
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'add',    value: 20   },
         { lane: 1, y: -400,  type: 'sub',    value: 3    },
         { lane: 2, y: -400,  type: 'sub',    value: 2    },
@@ -52,10 +44,6 @@ export const levels = [
     ],
     // Level 3 - Mult
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'mul',    value: 1    },
         { lane: 1, y: -400,  type: 'mul',    value: 2    },
         { lane: 2, y: -400,  type: 'mul',    value: 1    },
@@ -76,10 +64,6 @@ export const levels = [
     ],
     // Level 4 - Mult + Div
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'mul',    value: 2    },
         { lane: 1, y: -400,  type: 'div',    value: 2    },
         { lane: 2, y: -400,  type: 'div',    value: 3    },
@@ -100,10 +84,6 @@ export const levels = [
     ],
     // Level 5 - Geral
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'mul',    value: 2    },
         { lane: 1, y: -400,  type: 'sub',    value: 50   },
         { lane: 2, y: -400,  type: 'div',    value: 4    },
@@ -124,10 +104,6 @@ export const levels = [
     ],
     // Level 6 - Geral
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'add',    value: 10   },
         { lane: 1, y: -400,  type: 'mul',    value: 2    },
         { lane: 2, y: -400,  type: 'sub',    value: 10   },
@@ -152,10 +128,6 @@ export const levels = [
     ],
     // Level 7 - Geral
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'mul',    value: 4    },
         { lane: 1, y: -400,  type: 'div',    value: 2    },
         { lane: 2, y: -400,  type: 'add',    value: 20   },
@@ -180,10 +152,6 @@ export const levels = [
     ],
     // Level 8 - Geral
     [
-        { lane: 0, y: 0,     type: 'none',   value: 0    },
-        { lane: 1, y: 0,     type: 'none',   value: 0    },
-        { lane: 2, y: 0,     type: 'none',   value: 0    },
-
         { lane: 0, y: -400,  type: 'mul',    value: 4    },
         { lane: 1, y: -400,  type: 'div',    value: 2    },
         { lane: 2, y: -400,  type: 'add',    value: 20   },

@@ -8,17 +8,38 @@
     <title>Carro matemático</title>
 </head>
 <body>
+    <!-- Modal de Registro de Jogador -->
+    <div id="nameModal" class="modal">
+        <div class="modal-content name-modal-content">
+            <div class="name-modal-icon">🏎️</div>
+            <h2>Carro Matemático</h2>
+            <p class="name-modal-subtitle">Digite seu nome para começar</p>
+            <div class="name-input-group">
+                <input type="text" id="playerNameInput" class="name-input" placeholder="Seu nome aqui..." maxlength="20" autocomplete="off" />
+            </div>
+            <button id="startSessionBtn" class="btn-primary">▶ Jogar</button>
+        </div>
+    </div>
+
     <!-- Seleção das fases -->
-    <div id="levelModal" class="modal">
+    <div id="levelModal" class="modal hidden">
         <div class="modal-content">
-            <h2>Selecionar Fase</h2>
+            <div class="menu-header">
+                <h2>Selecionar Fase</h2>
+                <div class="menu-player-info">
+                    <span id="menuPlayerName">Jogador</span>
+                    <span class="menu-lives" id="menuLives">❤️❤️❤️</span>
+                    <span class="menu-total-score" id="menuTotalScore">Total: 0 pts</span>
+                </div>
+            </div>
             <div id="levelButtons" class="level-buttons"></div>
             <div class="volume-control">
                 <span>🔊 Volume:</span>
                 <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5" />
                 <span id="volumeValue">50%</span>
             </div>
-            <div class="modal-buttons">
+            <div class="menu-footer">
+                <button id="logoutBtn" class="btn-logout">🚪 Sair do Usuário</button>
             </div>
         </div>
     </div>
@@ -32,6 +53,7 @@
                 <div class="hud-top">
                     <div class="hud-left-group">
                         <span id="levelIndicator">Fase 1</span>
+                        <span id="livesIndicator" class="lives-indicator">❤️❤️❤️</span>
                         <button class="btn" id="btnStart">Menu</button>
                     </div>
                     <div class="hud-right-group">
@@ -67,15 +89,42 @@
         </div>
     </div>
 
-    <!-- Modal de resultado -->
+    <!-- Modal de resultado de fase -->
     <div id="resultModal" class="modal hidden">
         <div class="modal-content">
             <h2 id="resultTitle"></h2>
             <p id="resultScore"></p>
+            <p id="resultLives"></p>
             <div class="modal-buttons">
                 <button id="backMenuBtn">Menu</button>
+                <button id="retryBtn" class="hidden">Tentar Novamente</button>
                 <button id="nextLevelBtn">Próxima fase</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal de Scoreboard (fim de sessão) -->
+    <div id="scoreboardModal" class="modal hidden">
+        <div class="modal-content scoreboard-content">
+            <div id="scoreboardHeader">
+                <div class="scoreboard-icon" id="scoreboardIcon">🏆</div>
+                <h2 id="scoreboardTitle">Placar de Líderes</h2>
+                <p id="scoreboardSubtitle"></p>
+            </div>
+            <div class="scoreboard-table-wrap">
+                <table class="scoreboard-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Jogador</th>
+                            <th>Pontuação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scoreboardBody"></tbody>
+                </table>
+            </div>
+            <button id="newPlayerBtn" class="btn-primary" style="margin-top:24px; width:100%;">👤 Novo Jogador</button>
+            <button id="resetScoreboardBtn" class="btn-reset-scoreboard">🗑️ Resetar Placar</button>
         </div>
     </div>
 
