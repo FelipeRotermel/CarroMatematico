@@ -13,6 +13,11 @@
         <div class="modal-content">
             <h2>Selecionar Fase</h2>
             <div id="levelButtons" class="level-buttons"></div>
+            <div class="volume-control">
+                <span>🔊 Volume:</span>
+                <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5" />
+                <span id="volumeValue">50%</span>
+            </div>
             <div class="modal-buttons">
             </div>
         </div>
@@ -23,11 +28,39 @@
         <div class="game">
             <div id="game"></div>
             <div class="hud">
-                <div class="row top">
-                    <div class="badge" id="velocityBox">🚗 10</div>
-                    <div class="badge" id="scoreBox">
-                        <div class="badge" id="levelIndicator">Fase 1</div>
+                <!-- Top HUD -->
+                <div class="hud-top">
+                    <div class="hud-left-group">
+                        <span id="levelIndicator">Fase 1</span>
                         <button class="btn" id="btnStart">Menu</button>
+                    </div>
+                    <div class="hud-right-group">
+                        <!-- Score Progress Bar -->
+                        <div class="progress-container score-container">
+                            <div class="progress-label" id="scoreLabel">🏆 PONTOS: 0 / 100</div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill yellow" id="scoreBar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bottom HUD -->
+                <div class="hud-bottom">
+                    <!-- Nitro Progress Bar (Bottom-Left) -->
+                    <div class="progress-container nitro-container">
+                        <div class="progress-label" id="nitroLabel">⚡ NITRO: 100%</div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill orange-red" id="nitroBar"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Speedometer Progress Bar (Bottom-Right) -->
+                    <div class="progress-container speed-container">
+                        <div class="progress-label" id="speedLabel">🚗 VELOCIDADE: 80 km/h</div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill green" id="speedBar"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -40,8 +73,8 @@
             <h2 id="resultTitle"></h2>
             <p id="resultScore"></p>
             <div class="modal-buttons">
-                <button id="nextLevelBtn">Próxima fase</button>
                 <button id="backMenuBtn">Menu</button>
+                <button id="nextLevelBtn">Próxima fase</button>
             </div>
         </div>
     </div>

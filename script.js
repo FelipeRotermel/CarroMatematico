@@ -6,9 +6,10 @@ const resultTitle = document.getElementById("resultTitle");
 const resultScore = document.getElementById("resultScore");
 const nextLevelBtn = document.getElementById("nextLevelBtn");
 const backMenuBtn = document.getElementById("backMenuBtn");
-const lanesX = [-0.35, 0, 0.35];
 
-// ===== Configuração da câmera pseudo-3D =====
+// ===== Configuração da câmera pseudo-3D e Pistas =====
+const LANE_SPACING = 0.3;       // fator de afastamento das pistas laterais (era 0.35)
+const DIVIDER_SPACING = 0.175;   // fator de posicionamento visual das linhas divisórias (restaurado)
 const HORIZON_RATIO = 0.55;     // posição do horizonte (fração da altura) — maior = mais céu
 const PERSPECTIVE_K = 0.0035;   // intensidade do encolhimento com a profundidade
 const STRIPE_LENGTH = 220;      // comprimento de cada faixa zebrada (em unidades Z)
@@ -28,16 +29,23 @@ const state = {
     lanePos: 1,
     tiltAngle: 0,
     currentLevel: 0,
-    nitro: 100,       // tanque de nitro (0–100)
-    boosting: false   // true enquanto Shift está pressionado e há nitro
+    nitro: 1000,       // tanque de nitro (0–100)
+    boosting: false,   // true enquanto Shift está pressionado e há nitro
+    volume: 0.5        // volume da música de fundo (0–1)
 };
 
 const ui = {
-    velocity: document.getElementById('velocityBox'),
     start: document.getElementById('btnStart'),
     modal: document.getElementById('levelModal'),
     levelButtons: document.getElementById('levelButtons'),
-    levelIndicator: document.getElementById('levelIndicator')
+    levelIndicator: document.getElementById('levelIndicator'),
+    
+    scoreBar: document.getElementById('scoreBar'),
+    scoreLabel: document.getElementById('scoreLabel'),
+    nitroBar: document.getElementById('nitroBar'),
+    nitroLabel: document.getElementById('nitroLabel'),
+    speedBar: document.getElementById('speedBar'),
+    speedLabel: document.getElementById('speedLabel')
 };
 
 let scene = null;
@@ -184,7 +192,7 @@ function getRoadWidth(width) {
  */
 function laneFloatToPixels(laneFloat, width, roadW) {
     if (roadW === undefined) roadW = getRoadWidth(width);
-    return width / 2 + (laneFloat - 1) * 0.35 * roadW;
+    return width / 2 + (laneFloat - 1) * LANE_SPACING * roadW;
 }
 
 /**
@@ -241,11 +249,15 @@ function createGateSprite(mathObject) {
         container.finishTop = topText;
         container.finishBottom = bottomText;
     } else {
-        const isPositive = mathObject.type === "add" || mathObject.type === "mul";
-        const textureKey = isPositive ? 'nitrous' : 'cone';
+        let textureKey = 'cone';
+        if (mathObject.type === "add" || mathObject.type === "mul") {
+            textureKey = 'nitrous';
+        } else if (mathObject.type === "none") {
+            textureKey = 'none';
+        }
 
         const icon = scene.add.image(0, 0, textureKey);
-        icon.setDisplaySize(130, 130);
+        icon.setDisplaySize(170, 170);
 
         let txt = "";
         if (mathObject.type === "add") txt = `+${mathObject.value}`;
@@ -254,7 +266,7 @@ function createGateSprite(mathObject) {
         if (mathObject.type === "div") txt = `/${mathObject.value}`;
 
         const text = scene.add.text(0, 80, txt, {
-            fontSize: '32px', color: '#ffffff', fontFamily: 'sans-serif', fontStyle: 'bold',
+            fontSize: '50px', color: '#ffffff', fontFamily: 'sans-serif', fontStyle: 'bold',
             stroke: '#000', strokeThickness: 5
         }).setOrigin(0.5);
 
@@ -382,7 +394,11 @@ function applyMathOperation(mathObject) {
  * "tocado" um pouco antes de chegar visualmente sobre o carro.
  */
 function collide() {
-    const px = state.lane;
+    if (!scene) return;
+    const { width, height } = scene.scale;
+    const playerX = laneFloatToPixels(state.lanePos, width);
+    const playerY = height - 180;
+    const playerHalfWidth = 110; // largura de colisão do corpo do carro (excluindo retrovisores largos)
 
     for (const mathObject of state.mathOperations) {
         const relZ = -mathObject.y - state.scroll;
@@ -393,9 +409,19 @@ function collide() {
                 applyMathOperation(mathObject);
             }
         } else {
-            // janela mais à frente: o objeto é ativado antes de chegar visualmente ao carro
-            if (!mathObject.hit && !mathObject.disappearing && mathObject.lane === px && relZ > -20 && relZ < 120) {
-                applyMathOperation(mathObject);
+            // Verifica colisão usando coordenadas de tela (X e Y)
+            if (!mathObject.hit && !mathObject.disappearing && relZ < 600) {
+                const proj = project(relZ, width, height);
+                const itemX = laneFloatToPixels(mathObject.lane, width, proj.roadW);
+                const itemY = proj.screenY;
+                const itemHalfWidth = (130 * proj.scale) / 2;
+
+                const horizontalOverlap = Math.abs(playerX - itemX) < (playerHalfWidth + itemHalfWidth);
+                const verticalOverlap = (itemY >= playerY + 60) && (itemY <= playerY + 140);
+
+                if (horizontalOverlap && verticalOverlap) {
+                    applyMathOperation(mathObject);
+                }
             }
         }
     }
@@ -439,7 +465,9 @@ function drawRoad() {
     let prev = { screenY: horizonY, scale: 0, roadW: 0, horizonY };
 
     for (let i = ROAD_SEGMENTS - 1; i >= 0; i--) {
-        const curRelZ = (i / ROAD_SEGMENTS) * DRAW_DIST;
+        const ratio = i / ROAD_SEGMENTS;
+        const scale = 1 - ratio;
+        const curRelZ = (1 / scale - 1) / PERSPECTIVE_K;
         const cur = project(curRelZ, width, height);
 
         const yT = prev.screenY;
@@ -481,7 +509,7 @@ function drawRoad() {
 
         // faixas divisórias tracejadas (apenas em tiras escuras, criando o tracejado)
         if (isDark) {
-            for (const df of [-0.175, 0.175]) {
+            for (const df of [-DIVIDER_SPACING, DIVIDER_SPACING]) {
                 const halfWP = LANE_DIVIDER_FRAC * prev.roadW;
                 const halfWC = LANE_DIVIDER_FRAC * cur.roadW;
                 const xpC = cx + df * prev.roadW;
@@ -506,8 +534,8 @@ function reset() {
     state.scroll = 0;
     state.lane = 1;
     state.lanePos = 1;
-    state.velocity = 100;
-    state.nitro = 100;
+    state.velocity = 80;
+    state.nitro = 1000;
     state.boosting = false;
     state.finished = false;
     state.gameOver = false;
@@ -521,15 +549,22 @@ function reset() {
     });
 
     const levelGates = levels[state.currentLevel % levels.length];
+    const finishGate = levelGates.find(g => g.type === 'finish');
+    state.targetScore = finishGate ? finishGate.value : 100;
 
-    state.mathOperations = levelGates.map(g => ({
-        ...g,
-        hit: false,
-        disappearing: false,
-        alpha: 1,
-        scale: 1,
-        sprite: null
-    }));
+    state.mathOperations = levelGates.map(g => {
+        // Desloca -400 unidades e aplica 50% de aumento de distância (* 1.5)
+        const newY = (g.y - 400) * 1.5;
+        return {
+            ...g,
+            y: newY,
+            hit: false,
+            disappearing: false,
+            alpha: 1,
+            scale: 1,
+            sprite: null
+        };
+    });
 
     if (scene) {
         state.mathOperations.forEach(createGateSprite);
@@ -600,12 +635,21 @@ class MainScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('player_forward', 'src/img/forward.png');
-        this.load.image('player_left', 'src/img/turnLeft.png');
-        this.load.image('player_right', 'src/img/turnRight.png');
-        this.load.image('sky', 'src/img/sky.png');
-        this.load.image('nitrous', 'src/img/nitrous.png');
-        this.load.image('cone', 'src/img/cone.png');
+        this.load.image('player_forward', 'src/img/car/foward/foward1.png');
+        this.load.image('player_left', 'src/img/car/left/left1.png');
+        this.load.image('player_right', 'src/img/car/right/right1.png');
+        this.load.image('player_lane_left', 'src/img/car/left.png');
+        this.load.image('player_lane_right', 'src/img/car/right.png');
+        this.load.image('sky', 'src/img/scenario/sky.png');
+        this.load.image('nitrous', 'src/img/objects/nitrous.png');
+        this.load.image('cone', 'src/img/objects/cone.png');
+        this.load.image('none', 'src/img/objects/none.png');
+        this.load.audio('music', 'src/aud/ost1.mp3');
+        for (let i = 1; i <= 10; i++) {
+            this.load.image(`foward${i}`, `src/img/car/foward/foward${i}.png`);
+            this.load.image(`left${i}`, `src/img/car/left/left${i}.png`);
+            this.load.image(`right${i}`, `src/img/car/right/right${i}.png`);
+        }
     }
 
     create() {
@@ -617,14 +661,43 @@ class MainScene extends Phaser.Scene {
         this.sky = this.add.image(0, 0, 'sky').setOrigin(0, 0);
         this.sky.setDisplaySize(width, horizonY);
 
+        // Inicia música de fundo
+        this.music = this.sound.add('music', {
+            loop: true,
+            volume: state.volume
+        });
+        this.music.play();
+
         // estrada (graphics redesenhado a cada frame, em perspectiva)
         this.roadGfx = this.add.graphics();
         this.roadGfx.setDepth(10);
 
-        // jogador
-        this.player = this.add.image(0, 0, 'player_forward');
+        // jogador (agora como Sprite para suportar animações)
+        this.player = this.add.sprite(0, 0, 'player_forward');
         this.player.setDisplaySize(450, 300);
-        this.player.setDepth(500); // entre as gates próximas e distantes
+        this.player.setDepth(1500); // garante que o carro fica por cima dos objetos da pista
+
+        // Criar animações de 10 frames
+        this.anims.create({
+            key: 'anim_forward',
+            frames: Array.from({ length: 10 }, (_, i) => ({ key: `foward${i + 1}` })),
+            frameRate: 15,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'anim_left',
+            frames: Array.from({ length: 10 }, (_, i) => ({ key: `left${i + 1}` })),
+            frameRate: 15,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'anim_right',
+            frames: Array.from({ length: 10 }, (_, i) => ({ key: `right${i + 1}` })),
+            frameRate: 15,
+            repeat: -1
+        });
 
         // entradas (troca de pista — instantânea)
         this.input.keyboard.on('keydown-LEFT', moveLeft);
@@ -661,7 +734,14 @@ class MainScene extends Phaser.Scene {
             // acelerar / frear / nitro
             const accel = this.keys.up.isDown || this.keys.w.isDown;
             const brake = this.keys.down.isDown || this.keys.s.isDown;
-            const boost = this.keys.shift.isDown && state.nitro > 0;
+            
+            // Só pode ativar se tiver pelo menos 10%, mas pode continuar usando até 0%
+            let boost = false;
+            if (state.boosting) {
+                boost = this.keys.shift.isDown && state.nitro > 0;
+            } else {
+                boost = this.keys.shift.isDown && state.nitro >= 10;
+            }
             state.boosting = boost;
 
             if (boost) {
@@ -698,7 +778,14 @@ class MainScene extends Phaser.Scene {
         // jogador (no plano próximo — usa largura cheia da pista)
         const px = laneFloatToPixels(state.lanePos, width);
         const py = height - 180; // subi 60px para cima
-        this.player.setPosition(px, py);
+
+        // 1. Aplica efeito de vibração (jiggle) no chassi do carro baseado na velocidade
+        let jiggle = 0;
+        if (state.running) {
+            const speedFactor = state.velocity / 250; // normaliza pela velocidade normal máxima
+            jiggle = Math.sin(time * 0.08) * 1.5 * speedFactor;
+        }
+        this.player.setPosition(px, py + jiggle);
 
         // sombra do jogador: círculo achatado usando fillCircle com scaling
         // desenhamos após o carro para garantir ordem correta
@@ -712,22 +799,63 @@ class MainScene extends Phaser.Scene {
         this.roadGfx.fillCircle(0, 0, shadowRadius);
         this.roadGfx.restore();
 
-        // troca o sprite do carro de acordo com a direção da curva
+        // Gerencia a animação do carro de acordo com a direção ou faixa atual
         const TURN_THRESHOLD = 0.05;
         const diff = state.lane - state.lanePos;
-        let key = 'player_forward';
-        if (diff > TURN_THRESHOLD) key = 'player_right';
-        else if (diff < -TURN_THRESHOLD) key = 'player_left';
-        if (this.player.texture.key !== key) {
-            this.player.setTexture(key);
+        let animKey = 'anim_forward';
+
+        if (diff > TURN_THRESHOLD) {
+            // Movendo para a direita: chassi aponta para a direita (frames 'left')
+            animKey = 'anim_left';
+        } else if (diff < -TURN_THRESHOLD) {
+            // Movendo para a esquerda: chassi aponta para a esquerda (frames 'right')
+            animKey = 'anim_right';
+        } else {
+            // Carro estabilizado na faixa: aplica o sprite da faixa correspondente
+            if (state.lane === 0) {
+                animKey = 'anim_left';
+            } else if (state.lane === 2) {
+                animKey = 'anim_right';
+            }
+        }
+
+        if (state.running) {
+            if (!this.player.anims.isPlaying || this.player.anims.currentAnim.key !== animKey) {
+                this.player.play(animKey);
+            }
+            // Ajusta a velocidade de reprodução baseado na velocidade do carro
+            this.player.anims.timeScale = Math.max(0.3, state.velocity / 180);
+        } else {
+            this.player.anims.stop();
+            // Mostra o frame inicial correspondente quando parado
+            const mapFrame = {
+                'anim_forward': 'foward1',
+                'anim_left': 'left1',
+                'anim_right': 'right1'
+            };
+            this.player.setTexture(mapFrame[animKey]);
         }
 
         // HUD
         const vel = Math.round(state.velocity);
         const nitro = Math.round(state.nitro);
-        const boostIcon = state.boosting ? '🔥 ' : '';
-        const accelIcon = (!state.boosting && this.keys && (this.keys.up.isDown || this.keys.w.isDown)) ? '💨 ' : '';
-        ui.velocity.textContent = `${boostIcon}${accelIcon}🚗 ${vel} km/h | ⚡ ${nitro}% | 🏆 ${state.score} pts`;
+        const score = Math.round(state.score);
+        const target = state.targetScore || 100;
+
+        // 1. Velocímetro (0 a 350 km/h)
+        const speedPercent = Math.min(100, Math.max(0, (vel / 350) * 100));
+        if (ui.speedBar) ui.speedBar.style.width = `${speedPercent}%`;
+        if (ui.speedLabel) ui.speedLabel.innerHTML = `🚗 VEL: ${vel} km/h`;
+
+        // 2. Indicador de Nitro (0% a 100%)
+        if (ui.nitroBar) ui.nitroBar.style.width = `${nitro}%`;
+        const thresholdWarn = (nitro < 10) ? ' (BLOQUEADO)' : '';
+        if (ui.nitroLabel) ui.nitroLabel.textContent = `⚡ NITRO: ${nitro}%${thresholdWarn}`;
+
+        // 3. Pontuação (Score / TargetScore)
+        const scorePercent = Math.min(100, Math.max(0, (score / target) * 100));
+        if (ui.scoreBar) ui.scoreBar.style.width = `${scorePercent}%`;
+        if (ui.scoreLabel) ui.scoreLabel.textContent = `🏆 PONTOS: ${score} / ${target}`;
 
         if (!state.running && !resultModal.classList.contains("hidden")) {
             // modal de resultado aberto — não faz nada
@@ -755,6 +883,29 @@ const game = new Phaser.Game({
     },
     scene: [MainScene]
 });
+
+// Controle de Volume Customizado
+const volumeSlider = document.getElementById('volumeSlider');
+const volumeValue = document.getElementById('volumeValue');
+
+const savedVolume = localStorage.getItem("gameVolume");
+state.volume = savedVolume !== null ? parseFloat(savedVolume) : 0.5;
+
+if (volumeSlider) {
+    volumeSlider.value = state.volume;
+    volumeValue.textContent = `${Math.round(state.volume * 100)}%`;
+    
+    volumeSlider.addEventListener('input', (e) => {
+        const vol = parseFloat(e.target.value);
+        state.volume = vol;
+        volumeValue.textContent = `${Math.round(vol * 100)}%`;
+        
+        if (scene && scene.music) {
+            scene.music.setVolume(vol);
+        }
+        localStorage.setItem("gameVolume", vol);
+    });
+}
 
 populateLevelButtons();
 openMenu();
