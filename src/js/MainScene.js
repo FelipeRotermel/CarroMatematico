@@ -126,6 +126,7 @@ export class MainScene extends Phaser.Scene {
         this.gameState.scroll = 0;
         this.gameState.score = CONFIG.GAMEPLAY.INITIAL_SCORE;
         this.gameState.running = true;
+        this.currentLevelHits = [];
 
         const levelGates = levels[levelIndex % levels.length] || [];
         const finish = levelGates.find(g => g.type === 'finish');
@@ -133,6 +134,7 @@ export class MainScene extends Phaser.Scene {
 
         this.player.reset();
         this.gateManager.buildGatesForLevel(levelIndex);
+        this.ui.hideMathEquation();
         this.ui.updateHUD(
             this.player.velocity,
             this.player.nitro,
@@ -222,7 +224,14 @@ export class MainScene extends Phaser.Scene {
         }
 
         const isGood = gate.type === 'add' || gate.type === 'mul';
+        this.currentLevelHits.push({
+            type: gate.type,
+            value: gate.value,
+            isGood
+        });
+
         this.audio.playGateSfx(isGood);
+        const prevScore = this.gameState.score;
 
         if (gate.type === 'add') {
             this.gameState.score += gate.value;
@@ -240,6 +249,9 @@ export class MainScene extends Phaser.Scene {
             this.cameras.main.shake(200, 0.01);
         }
 
+        // Exibe a conta executada em destaque no topo da tela
+        this.ui.showMathEquation(prevScore, gate.type, gate.value, this.gameState.score);
+
         this.player.velocity = Math.min(Math.max(this.player.velocity, CONFIG.PHYSICS.BASE_SPEED), CONFIG.PHYSICS.MAX_NORMAL_SPEED);
 
         if (this.gameState.score <= 0) {
@@ -250,6 +262,18 @@ export class MainScene extends Phaser.Scene {
 
     handleLevelFinished(success) {
         this.gameState.running = false;
+
+        const goodHits = this.currentLevelHits.filter(h => h.isGood);
+        const badHits = this.currentLevelHits.filter(h => !h.isGood);
+        const levelStats = {
+            levelIndex: this.session.currentLevel,
+            score: this.gameState.score,
+            success,
+            goodHits,
+            badHits
+        };
+
+        this.session.recordLevelAttempt(levelStats);
 
         if (success) {
             this.session.recordLevelCompletion(this.session.currentLevel, this.gameState.score);
@@ -262,6 +286,7 @@ export class MainScene extends Phaser.Scene {
             this.ui.showResultModal(
                 true,
                 this.gameState.score,
+                levelStats,
                 () => this.startLevel(this.session.currentLevel + 1), // Next Level
                 () => this.startLevel(this.session.currentLevel),     // Retry
                 () => this.ui.openLevelMenu((idx) => this.startLevel(idx))
@@ -278,6 +303,7 @@ export class MainScene extends Phaser.Scene {
             this.ui.showResultModal(
                 false,
                 this.gameState.score,
+                levelStats,
                 () => this.startLevel(this.session.currentLevel + 1),
                 () => this.startLevel(this.session.currentLevel),     // Retry Same Level
                 () => this.ui.openLevelMenu((idx) => this.startLevel(idx))

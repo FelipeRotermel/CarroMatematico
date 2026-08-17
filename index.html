@@ -48,6 +48,12 @@
     <div class="wrap">
         <div class="game">
             <div id="game"></div>
+
+            <!-- Banner de Exibição da Conta no Topo da Tela -->
+            <div id="mathEquationBanner" class="math-equation-banner hidden">
+                <span id="mathEquationText" class="equation-text">100 + 10 = 110</span>
+            </div>
+
             <div class="hud">
                 <!-- Top HUD -->
                 <div class="hud-top">
@@ -91,10 +97,37 @@
 
     <!-- Modal de resultado de fase -->
     <div id="resultModal" class="modal hidden">
-        <div class="modal-content">
+        <div class="modal-content result-modal-content">
             <h2 id="resultTitle"></h2>
             <p id="resultScore"></p>
             <p id="resultLives"></p>
+            
+            <!-- Relatório Pedagógico da Fase (Opção E) -->
+            <div id="resultPedagogy" class="pedagogy-summary">
+                <div class="pedagogy-stats-grid">
+                    <div class="pedagogy-stat-card good">
+                        <span class="stat-icon">🟢</span>
+                        <div class="stat-info">
+                            <span class="stat-label">Acertos</span>
+                            <span id="resultGoodHitsCount" class="stat-value">0</span>
+                        </div>
+                        <div id="resultGoodHitsList" class="stat-badges"></div>
+                    </div>
+                    <div class="pedagogy-stat-card bad">
+                        <span class="stat-icon">🔴</span>
+                        <div class="stat-info">
+                            <span class="stat-label">Cones / Erros</span>
+                            <span id="resultBadHitsCount" class="stat-value">0</span>
+                        </div>
+                        <div id="resultBadHitsList" class="stat-badges"></div>
+                    </div>
+                </div>
+                <div id="resultPedagogyTip" class="pedagogy-tip">
+                    <span class="tip-icon">💡</span>
+                    <span id="resultPedagogyTipText" class="tip-text"></span>
+                </div>
+            </div>
+
             <div class="modal-buttons">
                 <button id="backMenuBtn">Menu</button>
                 <button id="retryBtn" class="hidden">Tentar Novamente</button>
@@ -110,6 +143,7 @@
                 <div class="scoreboard-icon" id="scoreboardIcon">🏆</div>
                 <h2 id="scoreboardTitle">Placar de Líderes</h2>
                 <p id="scoreboardSubtitle"></p>
+                <p class="scoreboard-hint">👆 Clique em qualquer jogador para ver o relatório pedagógico detalhado</p>
             </div>
             <div class="scoreboard-table-wrap">
                 <table class="scoreboard-table">
@@ -118,6 +152,7 @@
                             <th>#</th>
                             <th>Jogador</th>
                             <th>Pontuação</th>
+                            <th>Detalhes</th>
                         </tr>
                     </thead>
                     <tbody id="scoreboardBody"></tbody>
@@ -125,6 +160,18 @@
             </div>
             <button id="newPlayerBtn" class="btn-primary" style="margin-top:24px; width:100%;">👤 Novo Jogador</button>
             <button id="resetScoreboardBtn" class="btn-reset-scoreboard">🗑️ Resetar Placar</button>
+        </div>
+    </div>
+
+    <!-- Modal de Detalhes Pedagógicos do Jogador (Scorecard Click) -->
+    <div id="playerDetailsModal" class="modal hidden">
+        <div class="modal-content player-details-content">
+            <div class="player-details-header">
+                <h2 id="detailsPlayerName">Relatório do Jogador</h2>
+                <p id="detailsPlayerSummary" class="details-summary"></p>
+            </div>
+            <div id="detailsLevelHistory" class="details-history-list"></div>
+            <button id="closeDetailsBtn" class="btn-primary" style="margin-top:20px; width:100%;">Voltar ao Placar</button>
         </div>
     </div>
 

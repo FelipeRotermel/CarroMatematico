@@ -1,5 +1,5 @@
 /**
- * UIManager.js - Decoupled DOM UI Controller with Frame Dirty-Checking
+ * UIManager.js - Decoupled DOM UI Controller with Frame Dirty-Checking & Pedagogical Reports
  */
 
 import { CONFIG } from './Config.js';
@@ -33,6 +33,11 @@ export class UIManager {
             resultTitle: document.getElementById('resultTitle'),
             resultScore: document.getElementById('resultScore'),
             resultLives: document.getElementById('resultLives'),
+            resultGoodHitsCount: document.getElementById('resultGoodHitsCount'),
+            resultGoodHitsList: document.getElementById('resultGoodHitsList'),
+            resultBadHitsCount: document.getElementById('resultBadHitsCount'),
+            resultBadHitsList: document.getElementById('resultBadHitsList'),
+            resultPedagogyTipText: document.getElementById('resultPedagogyTipText'),
             backMenuBtn: document.getElementById('backMenuBtn'),
             retryBtn: document.getElementById('retryBtn'),
             nextLevelBtn: document.getElementById('nextLevelBtn'),
@@ -42,8 +47,17 @@ export class UIManager {
             scoreboardSubtitle: document.getElementById('scoreboardSubtitle'),
             scoreboardBody: document.getElementById('scoreboardBody'),
             newPlayerBtn: document.getElementById('newPlayerBtn'),
-            resetScoreboardBtn: document.getElementById('resetScoreboardBtn')
+            resetScoreboardBtn: document.getElementById('resetScoreboardBtn'),
+            playerDetailsModal: document.getElementById('playerDetailsModal'),
+            detailsPlayerName: document.getElementById('detailsPlayerName'),
+            detailsPlayerSummary: document.getElementById('detailsPlayerSummary'),
+            detailsLevelHistory: document.getElementById('detailsLevelHistory'),
+            closeDetailsBtn: document.getElementById('closeDetailsBtn'),
+            mathEquationBanner: document.getElementById('mathEquationBanner'),
+            mathEquationText: document.getElementById('mathEquationText')
         };
+
+        this.equationTimeout = null;
 
         this.hudCache = {
             speed: -1,
@@ -117,6 +131,13 @@ export class UIManager {
         });
 
         dom.resetScoreboardBtn.addEventListener('click', () => this.showPasswordModal());
+
+        if (dom.closeDetailsBtn) {
+            dom.closeDetailsBtn.addEventListener('click', () => {
+                this.hide(dom.playerDetailsModal);
+                this.show(dom.scoreboardModal);
+            });
+        }
     }
 
     show(el) {
@@ -129,6 +150,7 @@ export class UIManager {
 
     showNameModal() {
         this.hide(this.dom.scoreboardModal);
+        this.hide(this.dom.playerDetailsModal);
         this.hide(this.dom.levelModal);
         this.hide(this.dom.resultModal);
         this.show(this.dom.nameModal);
@@ -139,6 +161,7 @@ export class UIManager {
 
     openLevelMenu(onSelectLevel) {
         this.hide(this.dom.resultModal);
+        this.hide(this.dom.playerDetailsModal);
         this.updateMenuPlayerInfo();
         this.populateLevelButtons(onSelectLevel);
 
@@ -230,6 +253,43 @@ export class UIManager {
         if (dom.livesIndicator) dom.livesIndicator.textContent = this.session.getLivesHeartString();
     }
 
+    showMathEquation(prevScore, opType, opValue, newScore) {
+        const { dom } = this;
+        if (!dom.mathEquationBanner || !dom.mathEquationText) return;
+
+        let symbol = '+';
+        const isGood = opType === 'add' || opType === 'mul';
+        if (opType === 'sub') symbol = '-';
+        else if (opType === 'mul') symbol = '×';
+        else if (opType === 'div') symbol = '÷';
+
+        dom.mathEquationText.textContent = `${prevScore} ${symbol} ${opValue} = ${newScore}`;
+
+        dom.mathEquationBanner.classList.remove('good', 'bad', 'hidden');
+        dom.mathEquationBanner.classList.add(isGood ? 'good' : 'bad');
+
+        // Trigger CSS reflow to replay entry animation
+        void dom.mathEquationBanner.offsetWidth;
+
+        if (this.equationTimeout) {
+            clearTimeout(this.equationTimeout);
+        }
+
+        this.equationTimeout = setTimeout(() => {
+            dom.mathEquationBanner.classList.add('hidden');
+        }, 1600);
+    }
+
+    hideMathEquation() {
+        if (this.dom.mathEquationBanner) {
+            this.dom.mathEquationBanner.classList.add('hidden');
+        }
+        if (this.equationTimeout) {
+            clearTimeout(this.equationTimeout);
+            this.equationTimeout = null;
+        }
+    }
+
     triggerLifeLostAnimation() {
         if (this.dom.livesIndicator) {
             this.dom.livesIndicator.classList.remove('pulse');
@@ -238,8 +298,77 @@ export class UIManager {
         }
     }
 
-    showResultModal(success, levelScore, onNext, onRetry, onMenu) {
+    getPedagogicalTip(levelIndex, levelStats) {
+        if (!levelStats) return 'Dica: Colete Nitro para somar pontos e desvie dos cones!';
+
+        const badHits = levelStats.badHits || [];
+        const goodHits = levelStats.goodHits || [];
+
+        if (badHits.length === 0 && goodHits.length > 0) {
+            return '🌟 Incrível! Você fez um percurso perfeito sem encostar em nenhum cone!';
+        }
+
+        const hadDiv = badHits.some(h => h.type === 'div');
+        const hadSub = badHits.some(h => h.type === 'sub');
+        const hadMul = goodHits.some(h => h.type === 'mul');
+
+        if (hadDiv) {
+            return '💡 Dica: Os cones de divisão (/) repartem seus pontos. Desvie deles para proteger seu placar!';
+        }
+        if (hadSub) {
+            return '💡 Dica: Os cones de subtração (-) diminuem seus pontos. Escolha pistas com adições (+) para somar!';
+        }
+        if (hadMul) {
+            return '💡 Dica: Multiplicar por 2 é somar o número com ele mesmo (o dobro)! Excelente raciocínio!';
+        }
+
+        return '💡 Dica: Planeje sua troca de faixa com antecedência para pegar sempre os maiores números positivos!';
+    }
+
+    renderHitBadges(hits, containerEl, isGood) {
+        if (!containerEl) return;
+        containerEl.innerHTML = '';
+
+        if (!hits || hits.length === 0) {
+            const empty = document.createElement('span');
+            empty.className = 'badge-empty';
+            empty.textContent = isGood ? 'Nenhum' : '0 erros (Perfeito!)';
+            containerEl.appendChild(empty);
+            return;
+        }
+
+        hits.forEach(hit => {
+            const badge = document.createElement('span');
+            badge.className = `badge ${isGood ? 'badge-good' : 'badge-bad'}`;
+
+            let symbol = '+';
+            if (hit.type === 'sub') symbol = '-';
+            if (hit.type === 'mul') symbol = 'x';
+            if (hit.type === 'div') symbol = '/';
+
+            badge.textContent = `${symbol}${hit.value}`;
+            containerEl.appendChild(badge);
+        });
+    }
+
+    showResultModal(success, levelScore, levelStats, onNext, onRetry, onMenu) {
         const { dom, session } = this;
+
+        // Populate pedagogical stats
+        if (levelStats) {
+            const goodHits = levelStats.goodHits || [];
+            const badHits = levelStats.badHits || [];
+
+            if (dom.resultGoodHitsCount) dom.resultGoodHitsCount.textContent = goodHits.length;
+            if (dom.resultBadHitsCount) dom.resultBadHitsCount.textContent = badHits.length;
+
+            this.renderHitBadges(goodHits, dom.resultGoodHitsList, true);
+            this.renderHitBadges(badHits, dom.resultBadHitsList, false);
+
+            if (dom.resultPedagogyTipText) {
+                dom.resultPedagogyTipText.textContent = this.getPedagogicalTip(session.currentLevel, levelStats);
+            }
+        }
 
         if (success) {
             dom.resultTitle.textContent = '🎉 Fase Concluída!';
@@ -280,6 +409,58 @@ export class UIManager {
         this.show(dom.resultModal);
     }
 
+    showPlayerDetails(playerEntry) {
+        const { dom } = this;
+        if (!playerEntry) return;
+
+        dom.detailsPlayerName.textContent = `📊 Relatório: ${playerEntry.name}`;
+        dom.detailsPlayerSummary.textContent = `Pontuação Final: ${playerEntry.score} pts | Data: ${playerEntry.date} | Status: ${
+            playerEntry.reason === 'victory' ? '🏆 Vitória' : (playerEntry.reason === 'gameover' ? '💀 Game Over' : '🚪 Saída')
+        }`;
+
+        dom.detailsLevelHistory.innerHTML = '';
+
+        const history = playerEntry.history || [];
+        if (history.length === 0) {
+            dom.detailsLevelHistory.innerHTML = '<p style="color: rgba(234,242,255,0.4); text-align:center; padding:20px;">Nenhum detalhe registrado para esta partida.</p>';
+        } else {
+            history.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `level-report-card ${item.success ? 'success' : 'failed'}`;
+
+                const goodBadges = (item.goodHits && item.goodHits.length > 0)
+                    ? item.goodHits.map(h => `<span class="badge badge-good">${h.type === 'mul' ? 'x' : '+'}${h.value}</span>`).join(' ')
+                    : '<span class="badge-empty">Nenhum</span>';
+
+                const badBadges = (item.badHits && item.badHits.length > 0)
+                    ? item.badHits.map(h => `<span class="badge badge-bad">${h.type === 'div' ? '/' : '-'}${h.value}</span>`).join(' ')
+                    : '<span class="badge-empty">0 erros ⭐</span>';
+
+                card.innerHTML = `
+                    <div class="level-report-header">
+                        <span class="level-report-title">Fase ${item.levelIndex + 1} ${item.success ? '✅' : '❌'}</span>
+                        <span class="level-report-score">${item.score} pts</span>
+                    </div>
+                    <div class="level-report-details">
+                        <div class="level-report-section">
+                            <span>🟢 Acertos:</span>
+                            <div>${goodBadges}</div>
+                        </div>
+                        <div class="level-report-section">
+                            <span>🔴 Erros:</span>
+                            <div>${badBadges}</div>
+                        </div>
+                    </div>
+                `;
+                dom.detailsLevelHistory.appendChild(card);
+            });
+        }
+
+        this.hide(dom.scoreboardModal);
+        this.show(dom.playerDetailsModal);
+        dom.playerDetailsModal.style.zIndex = '2300';
+    }
+
     showScoreboard(reason, entry, board) {
         const { dom } = this;
         let icon = '🏅';
@@ -310,17 +491,29 @@ export class UIManager {
         dom.scoreboardBody.innerHTML = '';
         board.forEach((row, idx) => {
             const tr = document.createElement('tr');
+            tr.className = 'clickable-row';
             const isCurrent = (row.name === entry.name && row.score === entry.score && row.date === entry.date);
             if (isCurrent) tr.classList.add('current-player');
 
             const medals = ['🥇', '🥈', '🥉'];
             const rankCell = medals[idx] ? `<span class="rank-medal">${medals[idx]}</span>` : `${idx + 1}º`;
-            tr.innerHTML = `<td>${rankCell}</td><td>${row.name}</td><td>${row.score} pts</td>`;
+            tr.innerHTML = `
+                <td>${rankCell}</td>
+                <td>${row.name}</td>
+                <td>${row.score} pts</td>
+                <td class="details-btn-cell">🔍 Detalhes</td>
+            `;
+
+            tr.addEventListener('click', () => {
+                this.showPlayerDetails(row);
+            });
+
             dom.scoreboardBody.appendChild(tr);
         });
 
         this.hide(dom.levelModal);
         this.hide(dom.resultModal);
+        this.hide(dom.playerDetailsModal);
         this.show(dom.scoreboardModal);
         dom.scoreboardModal.style.zIndex = '2100';
     }
@@ -353,7 +546,7 @@ export class UIManager {
         const tryConfirm = () => {
             if (pwInput.value === CONFIG.GAMEPLAY.SECURITY_PIN) {
                 this.session.resetScoreboard();
-                this.dom.scoreboardBody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:rgba(234,242,255,0.4)">Placar zerado.</td></tr>';
+                this.dom.scoreboardBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:rgba(234,242,255,0.4)">Placar zerado.</td></tr>';
                 closeOverlay();
             } else {
                 pwInput.classList.remove('error');

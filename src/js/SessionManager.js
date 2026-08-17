@@ -13,6 +13,7 @@ export class SessionManager {
         this.currentLevel = 0;
         this.sessionActive = false;
         this.completedLevels = new Set();
+        this.sessionHistory = [];
         this.progress = this.loadProgress();
     }
 
@@ -41,6 +42,7 @@ export class SessionManager {
         this.currentLevel = 0;
         this.sessionActive = true;
         this.completedLevels.clear();
+        this.sessionHistory = [];
         this.progress = { unlocked: [true, ...Array(levels.length - 1).fill(false)] };
         this.saveProgress();
     }
@@ -48,6 +50,15 @@ export class SessionManager {
     loseLife() {
         this.lives = Math.max(0, this.lives - 1);
         return this.lives;
+    }
+
+    recordLevelAttempt(levelStats) {
+        const existingIndex = this.sessionHistory.findIndex(h => h.levelIndex === levelStats.levelIndex);
+        if (existingIndex >= 0) {
+            this.sessionHistory[existingIndex] = { ...levelStats, timestamp: Date.now() };
+        } else {
+            this.sessionHistory.push({ ...levelStats, timestamp: Date.now() });
+        }
     }
 
     recordLevelCompletion(levelIndex, levelScore) {
@@ -82,7 +93,8 @@ export class SessionManager {
             name: this.playerName,
             score: this.totalScore,
             reason,
-            date: new Date().toLocaleDateString('pt-BR')
+            date: new Date().toLocaleDateString('pt-BR'),
+            history: [...this.sessionHistory]
         };
         const board = this.loadScoreboard();
         board.push(entry);
