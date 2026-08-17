@@ -42,6 +42,38 @@ export const CONFIG = Object.freeze({
         DEFAULT_VOLUME: 0.5,
         SFX_VOLUME: 0.24
     },
+    DIFFICULTY: {
+        easy: {
+            id: 'easy',
+            name: 'Fácil',
+            icon: '🟢',
+            baseSpeed: 80,
+            maxNormalSpeed: 180,
+            maxNitroSpeed: 260,
+            multiplier: 0.8,
+            desc: 'Velocidade base de 80 km/h para pensar com calma'
+        },
+        medium: {
+            id: 'medium',
+            name: 'Médio',
+            icon: '🟡',
+            baseSpeed: 120,
+            maxNormalSpeed: 250,
+            maxNitroSpeed: 350,
+            multiplier: 1.0,
+            desc: 'Velocidade base de 120 km/h (ritmo equilibrado)'
+        },
+        hard: {
+            id: 'hard',
+            name: 'Difícil',
+            icon: '🔴',
+            baseSpeed: 200,
+            maxNormalSpeed: 360,
+            maxNitroSpeed: 460,
+            multiplier: 1.2,
+            desc: 'Velocidade base de 200 km/h (alta velocidade)'
+        }
+    },
     GAMEPLAY: {
         INITIAL_SCORE: 100,
         TOTAL_LIVES: 3,
@@ -53,6 +85,7 @@ export const CONFIG = Object.freeze({
     STORAGE_KEYS: {
         PROGRESS: 'gameProgress',
         SCOREBOARD: 'carro_scoreboard',
-        VOLUME: 'gameVolume'
+        VOLUME: 'gameVolume',
+        DIFFICULTY: 'gameDifficulty'
     }
 });

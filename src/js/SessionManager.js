@@ -1,5 +1,5 @@
 /**
- * SessionManager.js - Manages Player Sessions, Scoreboard, and Level Progression
+ * SessionManager.js - Manages Player Sessions, Scoreboard, Level Progression, and Difficulty
  */
 
 import { CONFIG } from './Config.js';
@@ -14,6 +14,7 @@ export class SessionManager {
         this.sessionActive = false;
         this.completedLevels = new Set();
         this.sessionHistory = [];
+        this.difficulty = this.loadDifficulty();
         this.progress = this.loadProgress();
     }
 
@@ -35,6 +36,31 @@ export class SessionManager {
         }
     }
 
+    loadDifficulty() {
+        try {
+            const saved = localStorage.getItem(CONFIG.STORAGE_KEYS.DIFFICULTY);
+            if (saved && CONFIG.DIFFICULTY[saved]) return saved;
+        } catch (err) {
+            console.error('Failed to load difficulty:', err);
+        }
+        return 'medium';
+    }
+
+    setDifficulty(diffKey) {
+        if (CONFIG.DIFFICULTY[diffKey]) {
+            this.difficulty = diffKey;
+            try {
+                localStorage.setItem(CONFIG.STORAGE_KEYS.DIFFICULTY, diffKey);
+            } catch (err) {
+                console.error('Failed to save difficulty:', err);
+            }
+        }
+    }
+
+    getDifficultyConfig() {
+        return CONFIG.DIFFICULTY[this.difficulty] || CONFIG.DIFFICULTY.medium;
+    }
+
     startSession(playerName) {
         this.playerName = playerName.trim();
         this.lives = CONFIG.GAMEPLAY.TOTAL_LIVES;
@@ -54,16 +80,27 @@ export class SessionManager {
 
     recordLevelAttempt(levelStats) {
         const existingIndex = this.sessionHistory.findIndex(h => h.levelIndex === levelStats.levelIndex);
+        const diffConfig = this.getDifficultyConfig();
+        const enrichedStats = {
+            ...levelStats,
+            difficulty: this.difficulty,
+            multiplier: diffConfig.multiplier,
+            timestamp: Date.now()
+        };
+
         if (existingIndex >= 0) {
-            this.sessionHistory[existingIndex] = { ...levelStats, timestamp: Date.now() };
+            this.sessionHistory[existingIndex] = enrichedStats;
         } else {
-            this.sessionHistory.push({ ...levelStats, timestamp: Date.now() });
+            this.sessionHistory.push(enrichedStats);
         }
     }
 
-    recordLevelCompletion(levelIndex, levelScore) {
+    recordLevelCompletion(levelIndex, baseLevelScore) {
+        const diffConfig = this.getDifficultyConfig();
+        const earnedScore = Math.round(baseLevelScore * diffConfig.multiplier);
+
         if (!this.completedLevels.has(levelIndex)) {
-            this.totalScore += levelScore;
+            this.totalScore += earnedScore;
             this.completedLevels.add(levelIndex);
         }
 
@@ -72,6 +109,7 @@ export class SessionManager {
             this.progress.unlocked[nextLevel] = true;
             this.saveProgress();
         }
+        return earnedScore;
     }
 
     isLastLevel(levelIndex) {
@@ -89,10 +127,14 @@ export class SessionManager {
     }
 
     saveScoreEntry(reason) {
+        const diffConfig = this.getDifficultyConfig();
         const entry = {
             name: this.playerName,
             score: this.totalScore,
             reason,
+            difficulty: this.difficulty,
+            diffName: diffConfig.name,
+            diffIcon: diffConfig.icon,
             date: new Date().toLocaleDateString('pt-BR'),
             history: [...this.sessionHistory]
         };

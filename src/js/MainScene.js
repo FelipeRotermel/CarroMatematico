@@ -119,6 +119,19 @@ export class MainScene extends Phaser.Scene {
         this.ui.on('volumeChange', (vol) => {
             if (this.audio) this.audio.setVolume(vol);
         });
+
+        this.ui.on('difficultyChange', (diffKey) => {
+            this.session.setDifficulty(diffKey);
+            const diffConfig = this.session.getDifficultyConfig();
+            if (this.player) {
+                this.player.baseSpeed = diffConfig.baseSpeed;
+                this.player.maxNormalSpeed = diffConfig.maxNormalSpeed;
+                this.player.maxNitroSpeed = diffConfig.maxNitroSpeed;
+                if (this.player.velocity < this.player.baseSpeed) {
+                    this.player.velocity = this.player.baseSpeed;
+                }
+            }
+        });
     }
 
     startLevel(levelIndex) {
@@ -132,7 +145,8 @@ export class MainScene extends Phaser.Scene {
         const finish = levelGates.find(g => g.type === 'finish');
         this.gameState.targetScore = finish ? finish.value : 100;
 
-        this.player.reset();
+        const diffConfig = this.session.getDifficultyConfig();
+        this.player.reset(diffConfig);
         this.gateManager.buildGatesForLevel(levelIndex);
         this.ui.hideMathEquation();
         this.ui.updateHUD(
@@ -235,24 +249,18 @@ export class MainScene extends Phaser.Scene {
 
         if (gate.type === 'add') {
             this.gameState.score += gate.value;
-            this.player.velocity += gate.value;
         } else if (gate.type === 'mul') {
             this.gameState.score *= gate.value;
-            this.player.velocity = Math.round(this.player.velocity * gate.value);
         } else if (gate.type === 'sub') {
             this.gameState.score -= gate.value;
-            this.player.velocity = Math.max(CONFIG.PHYSICS.BASE_SPEED, this.player.velocity - gate.value);
             this.cameras.main.shake(200, 0.01);
         } else if (gate.type === 'div') {
             this.gameState.score = Math.floor(this.gameState.score / gate.value);
-            this.player.velocity = Math.max(CONFIG.PHYSICS.BASE_SPEED, Math.round(this.player.velocity / gate.value));
             this.cameras.main.shake(200, 0.01);
         }
 
         // Exibe a conta executada em destaque no topo da tela
         this.ui.showMathEquation(prevScore, gate.type, gate.value, this.gameState.score);
-
-        this.player.velocity = Math.min(Math.max(this.player.velocity, CONFIG.PHYSICS.BASE_SPEED), CONFIG.PHYSICS.MAX_NORMAL_SPEED);
 
         if (this.gameState.score <= 0) {
             this.gameState.running = false;
@@ -276,7 +284,7 @@ export class MainScene extends Phaser.Scene {
         this.session.recordLevelAttempt(levelStats);
 
         if (success) {
-            this.session.recordLevelCompletion(this.session.currentLevel, this.gameState.score);
+            const earnedScore = this.session.recordLevelCompletion(this.session.currentLevel, this.gameState.score);
 
             if (this.session.isLastLevel(this.session.currentLevel)) {
                 setTimeout(() => this.handleEndSession('victory'), 400);
@@ -289,7 +297,8 @@ export class MainScene extends Phaser.Scene {
                 levelStats,
                 () => this.startLevel(this.session.currentLevel + 1), // Next Level
                 () => this.startLevel(this.session.currentLevel),     // Retry
-                () => this.ui.openLevelMenu((idx) => this.startLevel(idx))
+                () => this.ui.openLevelMenu((idx) => this.startLevel(idx)),
+                earnedScore
             );
         } else {
             const livesLeft = this.session.loseLife();

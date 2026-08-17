@@ -33,6 +33,29 @@
                 </div>
             </div>
             <div id="levelButtons" class="level-buttons"></div>
+            
+            <!-- Seletor de Dificuldade (Opção B) -->
+            <div class="difficulty-control">
+                <span class="difficulty-title">🎮 Dificuldade:</span>
+                <div class="difficulty-options" id="difficultyOptions">
+                    <button class="btn-diff" data-diff="easy" title="Velocidade reduzida para pensar com calma">
+                        <span class="diff-icon">🟢</span>
+                        <span class="diff-name">Fácil</span>
+                        <span class="diff-mult">0.8x</span>
+                    </button>
+                    <button class="btn-diff active" data-diff="medium" title="Ritmo equilibrado clássico">
+                        <span class="diff-icon">🟡</span>
+                        <span class="diff-name">Médio</span>
+                        <span class="diff-mult">1.0x</span>
+                    </button>
+                    <button class="btn-diff" data-diff="hard" title="Alta velocidade e bônus de pontuação">
+                        <span class="diff-icon">🔴</span>
+                        <span class="diff-name">Difícil</span>
+                        <span class="diff-mult">1.2x</span>
+                    </button>
+                </div>
+            </div>
+
             <div class="volume-control">
                 <span>🔊 Volume:</span>
                 <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5" />
@@ -151,6 +174,7 @@
                         <tr>
                             <th>#</th>
                             <th>Jogador</th>
+                            <th>Dificuldade</th>
                             <th>Pontuação</th>
                             <th>Detalhes</th>
                         </tr>

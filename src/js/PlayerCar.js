@@ -12,9 +12,13 @@ export class PlayerCar extends Phaser.GameObjects.Sprite {
         this.setDisplaySize(450, 300);
         this.setDepth(1500);
 
+        this.baseSpeed = CONFIG.PHYSICS.BASE_SPEED;
+        this.maxNormalSpeed = CONFIG.PHYSICS.MAX_NORMAL_SPEED;
+        this.maxNitroSpeed = CONFIG.PHYSICS.MAX_NITRO_SPEED;
+
         this.lane = 1;
         this.lanePos = 1;
-        this.velocity = CONFIG.PHYSICS.BASE_SPEED;
+        this.velocity = this.baseSpeed;
         this.nitro = CONFIG.PHYSICS.MAX_NITRO;
         this.boosting = false;
         this.tiltAngle = 0;
@@ -42,10 +46,15 @@ export class PlayerCar extends Phaser.GameObjects.Sprite {
         });
     }
 
-    reset() {
+    reset(diffConfig = null) {
+        if (diffConfig) {
+            this.baseSpeed = diffConfig.baseSpeed || CONFIG.PHYSICS.BASE_SPEED;
+            this.maxNormalSpeed = diffConfig.maxNormalSpeed || CONFIG.PHYSICS.MAX_NORMAL_SPEED;
+            this.maxNitroSpeed = diffConfig.maxNitroSpeed || CONFIG.PHYSICS.MAX_NITRO_SPEED;
+        }
         this.lane = 1;
         this.lanePos = 1;
-        this.velocity = CONFIG.PHYSICS.BASE_SPEED;
+        this.velocity = this.baseSpeed;
         this.nitro = CONFIG.PHYSICS.MAX_NITRO;
         this.boosting = false;
         this.tiltAngle = 0;
@@ -72,22 +81,27 @@ export class PlayerCar extends Phaser.GameObjects.Sprite {
         }
 
         if (this.boosting) {
-            this.velocity = Math.min(CONFIG.PHYSICS.MAX_NITRO_SPEED, this.velocity + CONFIG.PHYSICS.NITRO_ACCEL * factor);
+            this.velocity = Math.min(this.maxNitroSpeed, this.velocity + CONFIG.PHYSICS.NITRO_ACCEL * factor);
             this.nitro = Math.max(0, this.nitro - CONFIG.PHYSICS.NITRO_DRAIN * factor);
         } else if (accel) {
-            this.velocity = Math.min(CONFIG.PHYSICS.MAX_NORMAL_SPEED, this.velocity + CONFIG.PHYSICS.ACCEL_FACTOR * factor);
+            this.velocity = Math.min(this.maxNormalSpeed, this.velocity + CONFIG.PHYSICS.ACCEL_FACTOR * factor);
         }
 
         if (brake) {
-            this.velocity = Math.max(CONFIG.PHYSICS.BASE_SPEED, this.velocity - CONFIG.PHYSICS.BRAKE_FACTOR * factor);
+            this.velocity = Math.max(this.baseSpeed, this.velocity - CONFIG.PHYSICS.BRAKE_FACTOR * factor);
         }
 
         if (!this.boosting) {
             this.nitro = Math.min(CONFIG.PHYSICS.MAX_NITRO, this.nitro + CONFIG.PHYSICS.NITRO_RECHARGE * factor);
         }
 
-        if (this.velocity > CONFIG.PHYSICS.MAX_NORMAL_SPEED && !this.boosting) {
-            this.velocity = Math.max(CONFIG.PHYSICS.MAX_NORMAL_SPEED, this.velocity - CONFIG.PHYSICS.SPEED_DECAY * factor);
+        if (this.velocity > this.maxNormalSpeed && !this.boosting) {
+            this.velocity = Math.max(this.maxNormalSpeed, this.velocity - CONFIG.PHYSICS.SPEED_DECAY * factor);
+        }
+
+        // Garante que a velocidade nunca seja menor do que o mínimo da dificuldade selecionada
+        if (this.velocity < this.baseSpeed) {
+            this.velocity = this.baseSpeed;
         }
 
         // Smooth lane position transition
@@ -102,7 +116,7 @@ export class PlayerCar extends Phaser.GameObjects.Sprite {
 
         let jiggle = 0;
         if (isRunning) {
-            const speedFactor = this.velocity / CONFIG.PHYSICS.MAX_NORMAL_SPEED;
+            const speedFactor = this.velocity / this.maxNormalSpeed;
             jiggle = Math.sin(time * 0.08) * 1.5 * speedFactor;
         }
         this.setPosition(px, py + jiggle);

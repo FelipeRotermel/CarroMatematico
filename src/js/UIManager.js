@@ -1,5 +1,5 @@
 /**
- * UIManager.js - Decoupled DOM UI Controller with Frame Dirty-Checking & Pedagogical Reports
+ * UIManager.js - Decoupled DOM UI Controller with Frame Dirty-Checking, Difficulty Selector & Pedagogical Reports
  */
 
 import { CONFIG } from './Config.js';
@@ -54,7 +54,8 @@ export class UIManager {
             detailsLevelHistory: document.getElementById('detailsLevelHistory'),
             closeDetailsBtn: document.getElementById('closeDetailsBtn'),
             mathEquationBanner: document.getElementById('mathEquationBanner'),
-            mathEquationText: document.getElementById('mathEquationText')
+            mathEquationText: document.getElementById('mathEquationText'),
+            difficultyButtons: document.querySelectorAll('.btn-diff')
         };
 
         this.equationTimeout = null;
@@ -115,6 +116,17 @@ export class UIManager {
             }
         });
 
+        // Difficulty selector buttons
+        const diffButtons = document.querySelectorAll('.btn-diff');
+        diffButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const diffKey = btn.dataset.diff;
+                diffButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.emit('difficultyChange', diffKey);
+            });
+        });
+
         if (dom.volumeSlider) {
             dom.volumeSlider.addEventListener('input', (e) => {
                 const vol = parseFloat(e.target.value);
@@ -164,12 +176,20 @@ export class UIManager {
         this.hide(this.dom.playerDetailsModal);
         this.updateMenuPlayerInfo();
         this.populateLevelButtons(onSelectLevel);
+        this.updateDifficultyButtons();
 
         setTimeout(() => {
             this.show(this.dom.levelModal);
             this.dom.levelModal.style.zIndex = '1300';
             this.dom.resultModal.style.zIndex = '1200';
         }, 40);
+    }
+
+    updateDifficultyButtons() {
+        const diffButtons = document.querySelectorAll('.btn-diff');
+        diffButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.diff === this.session.difficulty);
+        });
     }
 
     updateMenuPlayerInfo() {
@@ -216,7 +236,9 @@ export class UIManager {
         // Speedometer
         if (hudCache.speed !== roundedSpeed) {
             hudCache.speed = roundedSpeed;
-            const speedPercent = Math.min(100, Math.max(0, (roundedSpeed / CONFIG.PHYSICS.MAX_NITRO_SPEED) * 100));
+            const diffConfig = this.session.getDifficultyConfig();
+            const maxGauge = diffConfig ? diffConfig.maxNitroSpeed : CONFIG.PHYSICS.MAX_NITRO_SPEED;
+            const speedPercent = Math.min(100, Math.max(0, (roundedSpeed / maxGauge) * 100));
             if (dom.speedBar) dom.speedBar.style.width = `${speedPercent}%`;
             if (dom.speedLabel) dom.speedLabel.innerHTML = `🚗 VEL: ${roundedSpeed} km/h`;
         }
@@ -249,7 +271,10 @@ export class UIManager {
         }
 
         // Level & Lives indicators
-        if (dom.levelIndicator) dom.levelIndicator.textContent = `Fase ${levelIndex + 1}`;
+        if (dom.levelIndicator) {
+            const diff = this.session.getDifficultyConfig();
+            dom.levelIndicator.textContent = `Fase ${levelIndex + 1} (${diff.icon} ${diff.name})`;
+        }
         if (dom.livesIndicator) dom.livesIndicator.textContent = this.session.getLivesHeartString();
     }
 
@@ -351,8 +376,10 @@ export class UIManager {
         });
     }
 
-    showResultModal(success, levelScore, levelStats, onNext, onRetry, onMenu) {
+    showResultModal(success, levelScore, levelStats, onNext, onRetry, onMenu, earnedScore) {
         const { dom, session } = this;
+        const diff = session.getDifficultyConfig();
+        const finalEarned = earnedScore !== undefined ? earnedScore : Math.round(levelScore * diff.multiplier);
 
         // Populate pedagogical stats
         if (levelStats) {
@@ -372,7 +399,11 @@ export class UIManager {
 
         if (success) {
             dom.resultTitle.textContent = '🎉 Fase Concluída!';
-            dom.resultScore.textContent = `Pontuação da fase: ${levelScore} pts | Total: ${session.totalScore} pts`;
+            if (diff.multiplier !== 1.0) {
+                dom.resultScore.textContent = `Pontuação: ${levelScore} pts × ${diff.multiplier}x (${diff.name}) = ${finalEarned} pts | Total: ${session.totalScore} pts`;
+            } else {
+                dom.resultScore.textContent = `Pontuação da fase: ${finalEarned} pts | Total: ${session.totalScore} pts`;
+            }
             if (dom.resultLives) dom.resultLives.textContent = `Vidas restantes: ${session.getLivesHeartString()}`;
 
             this.show(dom.nextLevelBtn);
@@ -413,8 +444,11 @@ export class UIManager {
         const { dom } = this;
         if (!playerEntry) return;
 
+        const diffKey = playerEntry.difficulty || 'medium';
+        const diffBadge = `<span class="diff-badge diff-badge-${diffKey}">${playerEntry.diffIcon || '🟡'} ${playerEntry.diffName || 'Médio'}</span>`;
+
         dom.detailsPlayerName.textContent = `📊 Relatório: ${playerEntry.name}`;
-        dom.detailsPlayerSummary.textContent = `Pontuação Final: ${playerEntry.score} pts | Data: ${playerEntry.date} | Status: ${
+        dom.detailsPlayerSummary.innerHTML = `Pontuação Final: <b>${playerEntry.score} pts</b> | Dificuldade: ${diffBadge} | Data: ${playerEntry.date} | Status: ${
             playerEntry.reason === 'victory' ? '🏆 Vitória' : (playerEntry.reason === 'gameover' ? '💀 Game Over' : '🚪 Saída')
         }`;
 
@@ -436,10 +470,12 @@ export class UIManager {
                     ? item.badHits.map(h => `<span class="badge badge-bad">${h.type === 'div' ? '/' : '-'}${h.value}</span>`).join(' ')
                     : '<span class="badge-empty">0 erros ⭐</span>';
 
+                const multiplierText = item.multiplier && item.multiplier !== 1.0 ? ` (${item.multiplier}x)` : '';
+
                 card.innerHTML = `
                     <div class="level-report-header">
                         <span class="level-report-title">Fase ${item.levelIndex + 1} ${item.success ? '✅' : '❌'}</span>
-                        <span class="level-report-score">${item.score} pts</span>
+                        <span class="level-report-score">${item.score} pts${multiplierText}</span>
                     </div>
                     <div class="level-report-details">
                         <div class="level-report-section">
@@ -495,11 +531,17 @@ export class UIManager {
             const isCurrent = (row.name === entry.name && row.score === entry.score && row.date === entry.date);
             if (isCurrent) tr.classList.add('current-player');
 
+            const diffKey = row.difficulty || 'medium';
+            const diffIcons = { easy: '🟢', medium: '🟡', hard: '🔴' };
+            const diffNames = { easy: 'Fácil', medium: 'Médio', hard: 'Difícil' };
+            const diffBadge = `<span class="diff-badge diff-badge-${diffKey}">${diffIcons[diffKey] || '🟡'} ${diffNames[diffKey] || 'Médio'}</span>`;
+
             const medals = ['🥇', '🥈', '🥉'];
             const rankCell = medals[idx] ? `<span class="rank-medal">${medals[idx]}</span>` : `${idx + 1}º`;
             tr.innerHTML = `
                 <td>${rankCell}</td>
                 <td>${row.name}</td>
+                <td>${diffBadge}</td>
                 <td>${row.score} pts</td>
                 <td class="details-btn-cell">🔍 Detalhes</td>
             `;
@@ -546,7 +588,7 @@ export class UIManager {
         const tryConfirm = () => {
             if (pwInput.value === CONFIG.GAMEPLAY.SECURITY_PIN) {
                 this.session.resetScoreboard();
-                this.dom.scoreboardBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:rgba(234,242,255,0.4)">Placar zerado.</td></tr>';
+                this.dom.scoreboardBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:rgba(234,242,255,0.4)">Placar zerado.</td></tr>';
                 closeOverlay();
             } else {
                 pwInput.classList.remove('error');
