@@ -46,19 +46,19 @@ export const levels = [
     [
         { lane: 0, y: -400,  type: 'mul',    value: 1    },
         { lane: 1, y: -400,  type: 'mul',    value: 2    },
-        { lane: 2, y: -400,  type: 'mul',    value: 1    },
+        { lane: 2, y: -400,  type: 'mul',    value: 3    },
 
         { lane: 0, y: -800,  type: 'mul',    value: 2    },
         { lane: 1, y: -800,  type: 'mul',    value: 1    },
-        { lane: 2, y: -800,  type: 'mul',    value: 1    },
+        { lane: 2, y: -800,  type: 'mul',    value: 4    },
 
-        { lane: 0, y: -1200, type: 'mul',    value: 1    },
-        { lane: 1, y: -1200, type: 'mul',    value: 1    },
+        { lane: 0, y: -1200, type: 'mul',    value: 5    },
+        { lane: 1, y: -1200, type: 'mul',    value: 3    },
         { lane: 2, y: -1200, type: 'mul',    value: 2    },
 
-        { lane: 0, y: -1600, type: 'mul',    value: 3    },
-        { lane: 1, y: -1600, type: 'mul',    value: 1    },
-        { lane: 2, y: -1600, type: 'mul',    value: 1    },
+        { lane: 0, y: -1600, type: 'mul',    value: 1    },
+        { lane: 1, y: -1600, type: 'mul',    value: 5    },
+        { lane: 2, y: -1600, type: 'mul',    value: 2    },
 
         { lane: 1, y: -1800, type: 'finish', value: 1000  }
     ],

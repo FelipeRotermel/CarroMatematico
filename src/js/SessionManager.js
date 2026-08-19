@@ -146,10 +146,116 @@ export class SessionManager {
         }
     }
 
+    calculatePedagogicalMetrics(history = this.sessionHistory) {
+        return SessionManager.calculatePedagogicalMetrics(history);
+    }
+
+    static calculatePedagogicalMetrics(history = []) {
+        let totalBest = 0;
+        let totalPartial = 0;
+        let totalWorst = 0;
+
+        // Contadores por operação: quantas vezes a operação apareceu como melhor opção e quantas vezes o aluno a escolheu
+        let oppAdd = 0, bestAdd = 0;
+        let oppMul = 0, bestMul = 0;
+        let oppSub = 0, avoidedSub = 0;
+        let oppDiv = 0, avoidedDiv = 0;
+
+        (history || []).forEach(lvl => {
+            const allDecisions = (lvl.goodHits || []).concat(lvl.badHits || []);
+            allDecisions.forEach(d => {
+                const quality = d.decisionQuality || (d.isGood ? 'best' : 'worst');
+
+                if (quality === 'best') totalBest++;
+                else if (quality === 'partial') totalPartial++;
+                else totalWorst++;
+
+                const options = d.options || [];
+                const hasAdd = options.some(o => o.type === 'add');
+                const hasMul = options.some(o => o.type === 'mul');
+                const hasSub = options.some(o => o.type === 'sub');
+                const hasDiv = options.some(o => o.type === 'div');
+
+                // Adição: oportunidade quando havia add disponível
+                if (hasAdd) {
+                    oppAdd++;
+                    if (d.type === 'add') bestAdd++;
+                }
+                // Multiplicação: oportunidade quando havia mul disponível
+                if (hasMul) {
+                    oppMul++;
+                    if (d.type === 'mul') bestMul++;
+                }
+                // Subtração: oportunidade quando havia sub E havia alternativa melhor
+                if (hasSub) {
+                    const hasBetterOption = hasAdd || hasMul || options.some(o => o.type === 'sub' && o.value < d.value);
+                    if (hasBetterOption || !hasSub) {
+                        oppSub++;
+                        if (d.type !== 'sub') avoidedSub++;
+                        else if (quality === 'best') avoidedSub++; // Escolheu a menor sub = bom
+                    }
+                }
+                // Divisão: oportunidade quando havia div E havia alternativa melhor
+                if (hasDiv) {
+                    const hasBetterOption = hasAdd || hasMul || options.some(o => o.type === 'div' && o.value < d.value);
+                    if (hasBetterOption || !hasDiv) {
+                        oppDiv++;
+                        if (d.type !== 'div') avoidedDiv++;
+                        else if (quality === 'best') avoidedDiv++; // Escolheu /1 = bom
+                    }
+                }
+            });
+        });
+
+        const totalDecisions = totalBest + totalPartial + totalWorst;
+        const overallAccuracy = totalDecisions > 0 ? Math.round((totalBest / totalDecisions) * 100) : 100;
+
+        // Porcentagens por operação
+        const rateAdd = oppAdd > 0 ? Math.round((bestAdd / oppAdd) * 100) : null;
+        const rateMul = oppMul > 0 ? Math.round((bestMul / oppMul) * 100) : null;
+        const rateSub = oppSub > 0 ? Math.round((avoidedSub / oppSub) * 100) : null;
+        const rateDiv = oppDiv > 0 ? Math.round((avoidedDiv / oppDiv) * 100) : null;
+
+        // Diagnóstico de pontos fracos
+        const weakPoints = [];
+        if (rateDiv !== null && rateDiv < 70) weakPoints.push('Divisao (/)');
+        if (rateSub !== null && rateSub < 70) weakPoints.push('Subtracao (-)');
+        if (rateAdd !== null && rateAdd < 70) weakPoints.push('Adicao (+)');
+        if (rateMul !== null && rateMul < 70) weakPoints.push('Multiplicacao (x)');
+
+        let diagnosis = 'Excelente dominio geral em calculo mental e desvio de obstaculos.';
+        if (weakPoints.length > 0) {
+            diagnosis = `Ponto de atencao identificado em: ${weakPoints.join(', ')}. Recomenda-se reforco pedagogico nessas operacoes.`;
+        } else if (overallAccuracy < 75 && totalDecisions > 0) {
+            diagnosis = 'Bom raciocinio, porem necessita de atencao no tempo de reacao para desvio dos cones.';
+        }
+
+        return {
+            totalDecisions,
+            totalBest,
+            totalPartial,
+            totalWorst,
+            totalGood: totalBest,
+            totalBad: totalWorst,
+            overallAccuracy,
+            rateAdd,
+            rateMul,
+            rateSub,
+            rateDiv,
+            oppAdd, bestAdd,
+            oppMul, bestMul,
+            oppSub, avoidedSub,
+            oppDiv, avoidedDiv,
+            weakPoints,
+            diagnosis
+        };
+    }
+
     saveScoreEntry(reason) {
         const diffConfig = this.getDifficultyConfig();
         const now = new Date();
         const formattedDate = `${now.toLocaleDateString('pt-BR')} ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        const metrics = this.calculatePedagogicalMetrics(this.sessionHistory);
 
         const entry = {
             name: this.playerName || 'Jogador',
@@ -159,7 +265,8 @@ export class SessionManager {
             diffName: diffConfig.name,
             diffIcon: diffConfig.icon,
             date: formattedDate,
-            history: [...this.sessionHistory]
+            history: [...this.sessionHistory],
+            metrics
         };
         const board = this.loadScoreboard();
         board.push(entry);

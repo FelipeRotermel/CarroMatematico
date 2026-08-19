@@ -253,15 +253,48 @@ export class MainScene extends Phaser.Scene {
             return;
         }
 
-        const isGood = gate.type === 'add' || gate.type === 'mul';
-        this.currentLevelHits.push({
-            type: gate.type,
-            value: gate.value,
-            isGood
-        });
-
-        this.audio.playGateSfx(isGood);
+        const isPositiveType = gate.type === 'add' || gate.type === 'mul';
         const prevScore = this.gameState.score;
+
+        // Captura todas as opções de faixas que estavam disponíveis neste checkpoint
+        const optionsAvailable = this.gateManager.activeGates
+            .filter(g => g.y === gate.y)
+            .sort((a, b) => a.lane - b.lane)
+            .map(g => ({
+                lane: g.lane,
+                laneName: g.lane === 0 ? 'Esquerda' : (g.lane === 1 ? 'Centro' : 'Direita'),
+                type: g.type,
+                value: g.value,
+                isPositiveType: g.type === 'add' || g.type === 'mul'
+            }));
+
+        // Simula o impacto de cada opção para ranquear a melhor escolha
+        const simulateImpact = (opt, score) => {
+            if (opt.type === 'add') return score + opt.value;
+            if (opt.type === 'mul') return score * opt.value;
+            if (opt.type === 'sub') return score - opt.value;
+            if (opt.type === 'div') return opt.value !== 0 ? Math.floor(score / opt.value) : 0;
+            return score;
+        };
+
+        const impacts = optionsAvailable.map(opt => ({
+            lane: opt.lane,
+            result: simulateImpact(opt, prevScore)
+        }));
+        impacts.sort((a, b) => b.result - a.result);
+
+        let decisionQuality = 'best'; // Acerto
+        if (impacts.length >= 3) {
+            const chosenIdx = impacts.findIndex(i => i.lane === gate.lane);
+            if (chosenIdx === 0) decisionQuality = 'best';
+            else if (chosenIdx === impacts.length - 1) decisionQuality = 'worst';
+            else decisionQuality = 'partial';
+        } else if (impacts.length === 2) {
+            decisionQuality = impacts[0].lane === gate.lane ? 'best' : 'worst';
+        }
+
+        // SFX continua baseado no tipo do portão (feedback imediato)
+        this.audio.playGateSfx(isPositiveType);
 
         if (gate.type === 'add') {
             this.gameState.score += gate.value;
@@ -274,6 +307,20 @@ export class MainScene extends Phaser.Scene {
             this.gameState.score = Math.floor(this.gameState.score / gate.value);
             this.cameras.main.shake(200, 0.01);
         }
+
+        this.currentLevelHits.push({
+            type: gate.type,
+            value: gate.value,
+            isGood: decisionQuality === 'best',
+            isPositiveType,
+            decisionQuality, // 'best' | 'partial' | 'worst'
+            lane: gate.lane,
+            laneName: gate.lane === 0 ? 'Esquerda' : (gate.lane === 1 ? 'Centro' : 'Direita'),
+            y: gate.y,
+            options: optionsAvailable,
+            scoreBefore: prevScore,
+            scoreAfter: this.gameState.score
+        });
 
         // Exibe a conta executada em destaque no topo da tela
         this.ui.showMathEquation(prevScore, gate.type, gate.value, this.gameState.score);

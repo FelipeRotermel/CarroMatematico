@@ -1034,6 +1034,12 @@ html, body {
     border: 1px solid rgba(61, 220, 151, 0.4);
 }
 
+.badge-partial {
+    background: rgba(249, 211, 66, 0.2);
+    color: #f9d342;
+    border: 1px solid rgba(249, 211, 66, 0.4);
+}
+
 .badge-bad {
     background: rgba(255, 107, 107, 0.2);
     color: #ff8080;
@@ -1095,7 +1101,7 @@ html, body {
 
 /* ===== MODAL DE DETALHES DO JOGADOR ===== */
 .player-details-content {
-    max-width: 620px;
+    max-width: 660px;
     padding: 32px 36px;
     text-align: left;
 }
@@ -1109,12 +1115,108 @@ html, body {
 .details-summary {
     font-size: 14px;
     color: rgba(234, 242, 255, 0.7);
-    margin: 0 0 18px;
+    margin: 0 0 16px;
     line-height: 1.4;
 }
 
+.summary-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 13px;
+    color: rgba(234, 242, 255, 0.85);
+    margin-bottom: 12px;
+}
+
+/* ===== PAINEL DE MÉTRICAS E DIAGNÓSTICO PEDAGÓGICO ===== */
+.pedagogical-metrics-panel {
+    background: rgba(15, 22, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.metrics-panel-title {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6cf;
+    margin-bottom: 10px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+@media (max-width: 600px) {
+    .metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.metric-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 8px 6px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.metric-lbl {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(234, 242, 255, 0.6);
+    text-transform: uppercase;
+}
+
+.metric-val {
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.rate-val {
+    font-weight: 800;
+}
+
+.rate-high {
+    color: #3ddc97;
+}
+
+.rate-mid {
+    color: #f9d342;
+}
+
+.rate-low {
+    color: #ff6b6b;
+}
+
+.rate-na {
+    color: rgba(234, 242, 255, 0.4);
+    font-size: 12px;
+}
+
+.diagnosis-box {
+    font-size: 12px;
+    line-height: 1.45;
+    background: rgba(61, 220, 151, 0.08);
+    border: 1px solid rgba(61, 220, 151, 0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #eaf2ff;
+}
+
 .details-history-list {
-    max-height: 300px;
+    max-height: 280px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -1158,17 +1260,75 @@ html, body {
     color: var(--gold);
 }
 
-.level-report-details {
+/* ===== DECISÕES POR PORTÃO / CHECKPOINT ===== */
+.level-decisions-container {
     display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.decision-row {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.decision-choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 12px;
 }
 
-.level-report-section {
+.decision-idx {
+    font-weight: 700;
+    color: rgba(234, 242, 255, 0.6);
+    font-size: 11px;
+}
+
+.decision-options-track {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
+    font-size: 11px;
+}
+
+.options-lbl {
+    color: rgba(234, 242, 255, 0.45);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.opt-pill {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(234, 242, 255, 0.6);
+}
+
+.opt-pill.chosen {
+    border-color: #6cf;
+    box-shadow: 0 0 6px rgba(102, 204, 255, 0.4);
+    color: #fff;
+}
+
+.opt-pill.opt-good.chosen {
+    border-color: #3ddc97;
+    box-shadow: 0 0 6px rgba(61, 220, 151, 0.4);
+}
+
+.opt-pill.opt-bad.chosen {
+    border-color: #ff6b6b;
+    box-shadow: 0 0 6px rgba(255, 107, 107, 0.4);
 }
 
 /* ===== BANNER DA CONTA MATEMÁTICA NO TOPO DA TELA ===== */

@@ -1,10 +1,7 @@
-/**
- * UIManager.js - Decoupled DOM UI Controller with Frame Dirty-Checking, Difficulty Selector & Pedagogical Reports
- */
-
 import { CONFIG } from './Config.js';
 import { levels } from '../../levels.js';
 import { ExcelExporter } from './ExcelExporter.js';
+import { SessionManager } from './SessionManager.js';
 
 export class UIManager {
     constructor(session) {
@@ -531,14 +528,56 @@ export class UIManager {
         const diffKey = playerEntry.difficulty || 'medium';
         const diffBadge = `<span class="diff-badge diff-badge-${diffKey}">${playerEntry.diffIcon || '🟡'} ${playerEntry.diffName || 'Médio'}</span>`;
 
-        dom.detailsPlayerName.textContent = `📊 Relatório: ${playerEntry.name}`;
-        dom.detailsPlayerSummary.innerHTML = `Pontuação Final: <b>${playerEntry.score} pts</b> | Dificuldade: ${diffBadge} | Data: ${playerEntry.date} | Status: ${
-            playerEntry.reason === 'victory' ? '🏆 Vitória' : (playerEntry.reason === 'gameover' ? '💀 Game Over' : '🚪 Saída')
-        }`;
+        const history = playerEntry.history || [];
+        const metrics = playerEntry.metrics || SessionManager.calculatePedagogicalMetrics(history);
+
+        const renderAccuracyBadge = (rate) => {
+            if (rate === null || rate === undefined) return '<span class="rate-na">N/A</span>';
+            const cls = rate >= 80 ? 'rate-high' : (rate >= 60 ? 'rate-mid' : 'rate-low');
+            return `<span class="rate-val ${cls}">${rate}%</span>`;
+        };
+
+        dom.detailsPlayerName.textContent = `📊 Auditoria: ${playerEntry.name}`;
+        dom.detailsPlayerSummary.innerHTML = `
+            <div class="summary-meta">
+                <span>Pontuação Final: <b>${playerEntry.score} pts</b></span>
+                <span>Dificuldade: ${diffBadge}</span>
+                <span>Status: ${playerEntry.reason === 'victory' ? '🏆 Vitória' : (playerEntry.reason === 'gameover' ? '💀 Game Over' : '🚪 Saída')}</span>
+                <span>Data: ${playerEntry.date}</span>
+            </div>
+
+            <div class="pedagogical-metrics-panel">
+                <div class="metrics-panel-title">🎯 Diagnóstico de Precisão Matemática</div>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-lbl">Precisão Geral</div>
+                        <div class="metric-val">${renderAccuracyBadge(metrics.overallAccuracy)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-lbl">➕ Adição</div>
+                        <div class="metric-val">${renderAccuracyBadge(metrics.rateAdd)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-lbl">➖ Subtração</div>
+                        <div class="metric-val">${renderAccuracyBadge(metrics.rateSub)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-lbl">✖️ Multiplicação</div>
+                        <div class="metric-val">${renderAccuracyBadge(metrics.rateMul)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-lbl">➗ Divisão</div>
+                        <div class="metric-val">${renderAccuracyBadge(metrics.rateDiv)}</div>
+                    </div>
+                </div>
+                <div class="diagnosis-box">
+                    💡 <b>Diagnóstico Pedagógico:</b> ${metrics.diagnosis}
+                </div>
+            </div>
+        `;
 
         dom.detailsLevelHistory.innerHTML = '';
 
-        const history = playerEntry.history || [];
         if (history.length === 0) {
             dom.detailsLevelHistory.innerHTML = '<p style="color: rgba(234,242,255,0.4); text-align:center; padding:20px;">Nenhum detalhe registrado para esta partida.</p>';
         } else {
@@ -546,13 +585,48 @@ export class UIManager {
                 const card = document.createElement('div');
                 card.className = `level-report-card ${item.success ? 'success' : 'failed'}`;
 
-                const goodBadges = (item.goodHits && item.goodHits.length > 0)
-                    ? item.goodHits.map(h => `<span class="badge badge-good">${h.type === 'mul' ? 'x' : '+'}${h.value}</span>`).join(' ')
-                    : '<span class="badge-empty">Nenhum</span>';
+                const goodHits = item.goodHits || [];
+                const badHits = item.badHits || [];
+                const allHits = [...goodHits, ...badHits].sort((a, b) => (b.y || 0) - (a.y || 0));
 
-                const badBadges = (item.badHits && item.badHits.length > 0)
-                    ? item.badHits.map(h => `<span class="badge badge-bad">${h.type === 'div' ? '/' : '-'}${h.value}</span>`).join(' ')
-                    : '<span class="badge-empty">0 erros ⭐</span>';
+                let decisionsHtml = '';
+                if (allHits.length > 0) {
+                    decisionsHtml = allHits.map((h, idx) => {
+                        const quality = h.decisionQuality || (h.isGood ? 'best' : 'worst');
+                        const badgeClass = quality === 'best' ? 'badge-good' : (quality === 'partial' ? 'badge-partial' : 'badge-bad');
+                        const qualityLabel = quality === 'best' ? 'Acerto' : (quality === 'partial' ? 'Parcial' : 'Erro');
+                        let sym = '+';
+                        if (h.type === 'sub') sym = '-';
+                        else if (h.type === 'mul') sym = 'x';
+                        else if (h.type === 'div') sym = '/';
+
+                        let optionsHtml = '';
+                        if (h.options && h.options.length > 0) {
+                            const optPills = h.options.map(opt => {
+                                let optSym = '+';
+                                if (opt.type === 'sub') optSym = '-';
+                                else if (opt.type === 'mul') optSym = 'x';
+                                else if (opt.type === 'div') optSym = '/';
+                                const isChosen = opt.lane === h.lane;
+                                const isOptPositive = opt.type === 'add' || opt.type === 'mul';
+                                return `<span class="opt-pill ${isChosen ? 'chosen' : ''} ${isOptPositive ? 'opt-good' : 'opt-bad'}">${opt.laneName}: ${optSym}${opt.value}</span>`;
+                            }).join(' ');
+                            optionsHtml = `<div class="decision-options-track"><span class="options-lbl">Opções na pista:</span> ${optPills}</div>`;
+                        }
+
+                        return `
+                            <div class="decision-row">
+                                <div class="decision-choice">
+                                    <span class="decision-idx">Portão ${idx + 1}:</span>
+                                    <span class="badge ${badgeClass}">${h.laneName || 'Faixa'}: ${sym}${h.value} (${qualityLabel})</span>
+                                </div>
+                                ${optionsHtml}
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    decisionsHtml = '<div class="decision-row"><span class="badge-empty">Nenhum obstáculo atingido nesta fase.</span></div>';
+                }
 
                 const multiplierText = item.multiplier && item.multiplier !== 1.0 ? ` (${item.multiplier}x)` : '';
 
@@ -561,15 +635,8 @@ export class UIManager {
                         <span class="level-report-title">Fase ${item.levelIndex + 1} ${item.success ? '✅' : '❌'}</span>
                         <span class="level-report-score">${item.score} pts${multiplierText}</span>
                     </div>
-                    <div class="level-report-details">
-                        <div class="level-report-section">
-                            <span>🟢 Acertos:</span>
-                            <div>${goodBadges}</div>
-                        </div>
-                        <div class="level-report-section">
-                            <span>🔴 Erros:</span>
-                            <div>${badBadges}</div>
-                        </div>
+                    <div class="level-decisions-container">
+                        ${decisionsHtml}
                     </div>
                 `;
                 dom.detailsLevelHistory.appendChild(card);
