@@ -25,6 +25,8 @@ export class MainScene extends Phaser.Scene {
 
         this.gameState = {
             running: false,
+            levelStarted: false,
+            levelFinished: false,
             score: CONFIG.GAMEPLAY.INITIAL_SCORE,
             targetScore: 100,
             scroll: 0
@@ -97,7 +99,10 @@ export class MainScene extends Phaser.Scene {
     }
 
     setupUIEventListeners() {
-        this.ui.on('startSession', (name) => {
+        this.ui.on('startSession', (name, diffKey) => {
+            if (diffKey) {
+                this.session.setDifficulty(diffKey);
+            }
             this.session.startSession(name);
             this.ui.hide(this.ui.dom.nameModal);
             this.ui.openLevelMenu((levelIdx) => this.startLevel(levelIdx));
@@ -110,6 +115,15 @@ export class MainScene extends Phaser.Scene {
             }
             this.gameState.running = false;
             this.ui.openLevelMenu((levelIdx) => this.startLevel(levelIdx));
+        });
+
+        this.ui.on('resumeOrStartFirstLevel', () => {
+            if (!this.gameState.levelStarted || this.gameState.levelFinished) {
+                const targetLvl = this.session.currentLevel || 0;
+                this.startLevel(targetLvl);
+            } else if (this.session.sessionActive && this.gameState.score > 0) {
+                this.gameState.running = true;
+            }
         });
 
         this.ui.on('logout', () => {
@@ -139,6 +153,8 @@ export class MainScene extends Phaser.Scene {
         this.gameState.scroll = 0;
         this.gameState.score = CONFIG.GAMEPLAY.INITIAL_SCORE;
         this.gameState.running = true;
+        this.gameState.levelStarted = true;
+        this.gameState.levelFinished = false;
         this.currentLevelHits = [];
 
         const levelGates = levels[levelIndex % levels.length] || [];
@@ -270,6 +286,7 @@ export class MainScene extends Phaser.Scene {
 
     handleLevelFinished(success) {
         this.gameState.running = false;
+        this.gameState.levelFinished = true;
 
         const goodHits = this.currentLevelHits.filter(h => h.isGood);
         const badHits = this.currentLevelHits.filter(h => !h.isGood);
@@ -322,7 +339,29 @@ export class MainScene extends Phaser.Scene {
 
     handleEndSession(reason) {
         this.gameState.running = false;
-        const { entry, board } = this.session.saveScoreEntry(reason);
-        this.ui.showScoreboard(reason, entry, board);
+        this.gameState.levelStarted = false;
+        this.gameState.levelFinished = true;
+
+        if (reason === 'logout') {
+            if (this.session.sessionActive && this.session.playerName) {
+                this.session.saveScoreEntry('logout');
+            }
+            this.session.sessionActive = false;
+            this.session.playerName = '';
+            this.session.totalScore = 0;
+            this.session.sessionHistory = [];
+            this.session.completedLevels.clear();
+            this.ui.showNameModal();
+            return;
+        }
+
+        if (this.session.sessionActive && this.session.playerName) {
+            const { entry, board } = this.session.saveScoreEntry(reason);
+            this.ui.showScoreboard(reason, entry, board);
+        } else {
+            this.session.sessionActive = false;
+            const board = this.session.loadScoreboard();
+            this.ui.showScoreboard(reason, null, board);
+        }
     }
 }

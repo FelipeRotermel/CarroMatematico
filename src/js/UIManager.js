@@ -4,6 +4,7 @@
 
 import { CONFIG } from './Config.js';
 import { levels } from '../../levels.js';
+import { ExcelExporter } from './ExcelExporter.js';
 
 export class UIManager {
     constructor(session) {
@@ -12,6 +13,7 @@ export class UIManager {
             nameModal: document.getElementById('nameModal'),
             playerNameInput: document.getElementById('playerNameInput'),
             startSessionBtn: document.getElementById('startSessionBtn'),
+            viewScoreboardBtn: document.getElementById('viewScoreboardBtn'),
             levelModal: document.getElementById('levelModal'),
             levelButtons: document.getElementById('levelButtons'),
             menuPlayerName: document.getElementById('menuPlayerName'),
@@ -48,6 +50,8 @@ export class UIManager {
             scoreboardBody: document.getElementById('scoreboardBody'),
             newPlayerBtn: document.getElementById('newPlayerBtn'),
             resetScoreboardBtn: document.getElementById('resetScoreboardBtn'),
+            exportXlsxBtn: document.getElementById('exportXlsxBtn'),
+            exportSinglePlayerXlsxBtn: document.getElementById('exportSinglePlayerXlsxBtn'),
             playerDetailsModal: document.getElementById('playerDetailsModal'),
             detailsPlayerName: document.getElementById('detailsPlayerName'),
             detailsPlayerSummary: document.getElementById('detailsPlayerSummary'),
@@ -58,7 +62,9 @@ export class UIManager {
             difficultyButtons: document.querySelectorAll('.btn-diff')
         };
 
+        this.selectedDifficulty = this.session.difficulty || 'medium';
         this.equationTimeout = null;
+        this.activeDetailsPlayer = null;
 
         this.hudCache = {
             speed: -1,
@@ -93,7 +99,7 @@ export class UIManager {
                 setTimeout(() => dom.playerNameInput.style.borderColor = '', 800);
                 return;
             }
-            this.emit('startSession', name);
+            this.emit('startSession', name, this.selectedDifficulty);
         };
 
         dom.startSessionBtn.addEventListener('click', submitName);
@@ -104,32 +110,47 @@ export class UIManager {
         dom.playerNameInput.addEventListener('keyup', (e) => e.stopPropagation());
         dom.playerNameInput.addEventListener('keypress', (e) => e.stopPropagation());
 
-        dom.btnStart.addEventListener('click', () => this.emit('openMenu'));
-        dom.logoutBtn.addEventListener('click', () => {
-            this.hide(dom.levelModal);
-            this.emit('logout');
-        });
+        if (dom.viewScoreboardBtn) {
+            dom.viewScoreboardBtn.addEventListener('click', () => {
+                const board = this.session.loadScoreboard();
+                this.showScoreboard('view', null, board);
+            });
+        }
+
+        if (dom.btnStart) {
+            dom.btnStart.addEventListener('click', () => this.emit('openMenu'));
+        }
+
+        if (dom.logoutBtn) {
+            dom.logoutBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.hide(dom.levelModal);
+                this.emit('logout');
+            });
+        }
 
         dom.levelModal.addEventListener('click', (e) => {
             if (e.target === dom.levelModal) {
                 this.hide(dom.levelModal);
+                this.emit('resumeOrStartFirstLevel');
             }
         });
 
-        // Difficulty selector buttons
+        // Difficulty selector buttons no perfil do jogador
         const diffButtons = document.querySelectorAll('.btn-diff');
         diffButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const diffKey = btn.dataset.diff;
+                this.selectedDifficulty = diffKey;
                 diffButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                this.emit('difficultyChange', diffKey);
             });
         });
 
         if (dom.volumeSlider) {
             dom.volumeSlider.addEventListener('input', (e) => {
                 const vol = parseFloat(e.target.value);
+                if (this.session) this.session.setVolume(vol);
                 if (dom.volumeValue) {
                     dom.volumeValue.textContent = `${Math.round(vol * 100)}%`;
                 }
@@ -144,12 +165,63 @@ export class UIManager {
 
         dom.resetScoreboardBtn.addEventListener('click', () => this.showPasswordModal());
 
+        if (dom.exportXlsxBtn) {
+            dom.exportXlsxBtn.addEventListener('click', () => {
+                const board = this.session.loadScoreboard();
+                ExcelExporter.exportScoreboard(board);
+            });
+        }
+
+        if (dom.exportSinglePlayerXlsxBtn) {
+            dom.exportSinglePlayerXlsxBtn.addEventListener('click', () => {
+                if (this.activeDetailsPlayer) {
+                    ExcelExporter.exportSinglePlayer(this.activeDetailsPlayer);
+                }
+            });
+        }
+
         if (dom.closeDetailsBtn) {
             dom.closeDetailsBtn.addEventListener('click', () => {
                 this.hide(dom.playerDetailsModal);
                 this.show(dom.scoreboardModal);
             });
         }
+
+        // Atalho de teclado global: tecla ESC
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                // 1. Se a modal de detalhes do jogador estiver aberta, volta ao placar
+                if (dom.playerDetailsModal && !dom.playerDetailsModal.classList.contains('hidden')) {
+                    this.hide(dom.playerDetailsModal);
+                    this.show(dom.scoreboardModal);
+                    return;
+                }
+
+                // 2. Se a caixa de senha do reset estiver aberta, cancela
+                const pwOverlay = document.querySelector('.password-overlay');
+                if (pwOverlay) {
+                    pwOverlay.remove();
+                    return;
+                }
+
+                // 3. Se o menu de fases estiver aberto, fecha e despausa ou inicia a primeira fase se for a primeira vez
+                if (dom.levelModal && !dom.levelModal.classList.contains('hidden')) {
+                    this.hide(dom.levelModal);
+                    this.emit('resumeOrStartFirstLevel');
+                    return;
+                }
+
+                // 4. Se modais bloqueantes estiverem abertas (registro de nome, resultado, scoreboard), não faz nada
+                if ((dom.nameModal && !dom.nameModal.classList.contains('hidden')) ||
+                    (dom.resultModal && !dom.resultModal.classList.contains('hidden')) ||
+                    (dom.scoreboardModal && !dom.scoreboardModal.classList.contains('hidden'))) {
+                    return;
+                }
+
+                // 5. Em jogo normal: abre o menu de fases (pausando o jogo)
+                this.emit('openMenu');
+            }
+        });
     }
 
     show(el) {
@@ -168,6 +240,8 @@ export class UIManager {
         this.show(this.dom.nameModal);
         this.dom.nameModal.style.zIndex = '2200';
         this.dom.playerNameInput.value = '';
+        this.selectedDifficulty = this.session.difficulty || 'medium';
+        this.updateDifficultyButtons();
         setTimeout(() => this.dom.playerNameInput.focus(), 80);
     }
 
@@ -176,7 +250,6 @@ export class UIManager {
         this.hide(this.dom.playerDetailsModal);
         this.updateMenuPlayerInfo();
         this.populateLevelButtons(onSelectLevel);
-        this.updateDifficultyButtons();
 
         setTimeout(() => {
             this.show(this.dom.levelModal);
@@ -188,7 +261,7 @@ export class UIManager {
     updateDifficultyButtons() {
         const diffButtons = document.querySelectorAll('.btn-diff');
         diffButtons.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.diff === this.session.difficulty);
+            btn.classList.toggle('active', btn.dataset.diff === this.selectedDifficulty);
         });
     }
 
@@ -197,8 +270,17 @@ export class UIManager {
         if (dom.menuPlayerName) dom.menuPlayerName.textContent = session.playerName;
         if (dom.menuLives) dom.menuLives.textContent = session.getLivesHeartString();
         if (dom.menuTotalScore) dom.menuTotalScore.textContent = `Total: ${session.totalScore} pts`;
-        if (dom.volumeSlider) dom.volumeSlider.value = this.session.volume || 0.5;
-        if (dom.volumeValue) dom.volumeValue.textContent = `${Math.round((dom.volumeSlider.value || 0.5) * 100)}%`;
+
+        const diff = session.getDifficultyConfig();
+        const badge = document.getElementById('menuDifficultyBadge');
+        if (badge) {
+            badge.className = `diff-badge diff-badge-${diff.id}`;
+            badge.textContent = `${diff.icon} ${diff.name}`;
+        }
+
+        const currentVol = (this.session && this.session.volume !== undefined) ? this.session.volume : 0.5;
+        if (dom.volumeSlider) dom.volumeSlider.value = currentVol;
+        if (dom.volumeValue) dom.volumeValue.textContent = `${Math.round(currentVol * 100)}%`;
     }
 
     populateLevelButtons(onSelectLevel) {
@@ -444,6 +526,8 @@ export class UIManager {
         const { dom } = this;
         if (!playerEntry) return;
 
+        this.activeDetailsPlayer = playerEntry;
+
         const diffKey = playerEntry.difficulty || 'medium';
         const diffBadge = `<span class="diff-badge diff-badge-${diffKey}">${playerEntry.diffIcon || '🟡'} ${playerEntry.diffName || 'Médio'}</span>`;
 
@@ -497,26 +581,33 @@ export class UIManager {
         dom.playerDetailsModal.style.zIndex = '2300';
     }
 
-    showScoreboard(reason, entry, board) {
+    showScoreboard(reason = 'view', entry = null, board = null) {
         const { dom } = this;
-        let icon = '🏅';
-        let title = 'Placar de Líderes';
-        let subtitle = `${entry.name} — ${entry.score} pontos salvos.`;
+        const currentBoard = board || this.session.loadScoreboard();
 
-        if (reason === 'victory') {
+        let icon = '🏆';
+        let title = 'Placar de Líderes';
+        let subtitle = 'Melhores pontuações registradas pelos alunos.';
+
+        if (reason === 'victory' && entry) {
             icon = '🏆';
             title = '🎉 Vitória!';
             subtitle = `Parabéns, ${entry.name}! Você completou todas as fases com ${entry.score} pontos!`;
             dom.scoreboardIcon.className = 'scoreboard-icon victory';
-        } else if (reason === 'gameover') {
+        } else if (reason === 'gameover' && entry) {
             icon = '💀';
             title = 'Game Over';
             subtitle = `Suas 3 vidas acabaram. Pontuação final: ${entry.score} pts.`;
             dom.scoreboardIcon.className = 'scoreboard-icon gameover';
-        } else {
+        } else if (reason === 'logout' && entry) {
             icon = '🚪';
-            title = 'Saída do Usuário';
-            subtitle = `${entry.name} saiu com ${entry.score} pts acumulados.`;
+            title = 'Sessão Encerrada';
+            subtitle = `${entry.name} encerrou a sessão com ${entry.score} pts acumulados.`;
+            dom.scoreboardIcon.className = 'scoreboard-icon';
+        } else {
+            icon = '🏆';
+            title = 'Placar de Líderes';
+            subtitle = 'Confira as melhores pontuações e desempenho dos alunos.';
             dom.scoreboardIcon.className = 'scoreboard-icon';
         }
 
@@ -525,34 +616,39 @@ export class UIManager {
         dom.scoreboardSubtitle.textContent = subtitle;
 
         dom.scoreboardBody.innerHTML = '';
-        board.forEach((row, idx) => {
-            const tr = document.createElement('tr');
-            tr.className = 'clickable-row';
-            const isCurrent = (row.name === entry.name && row.score === entry.score && row.date === entry.date);
-            if (isCurrent) tr.classList.add('current-player');
+        if (currentBoard.length === 0) {
+            dom.scoreboardBody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:rgba(234,242,255,0.4)">Nenhum jogador registrado ainda.</td></tr>';
+        } else {
+            currentBoard.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'clickable-row';
+                const isCurrent = entry && (row.name === entry.name && row.score === entry.score && row.date === entry.date);
+                if (isCurrent) tr.classList.add('current-player');
 
-            const diffKey = row.difficulty || 'medium';
-            const diffIcons = { easy: '🟢', medium: '🟡', hard: '🔴' };
-            const diffNames = { easy: 'Fácil', medium: 'Médio', hard: 'Difícil' };
-            const diffBadge = `<span class="diff-badge diff-badge-${diffKey}">${diffIcons[diffKey] || '🟡'} ${diffNames[diffKey] || 'Médio'}</span>`;
+                const diffKey = row.difficulty || 'medium';
+                const diffIcons = { easy: '🟢', medium: '🟡', hard: '🔴' };
+                const diffNames = { easy: 'Fácil', medium: 'Médio', hard: 'Difícil' };
+                const diffBadge = `<span class="diff-badge diff-badge-${diffKey}">${diffIcons[diffKey] || '🟡'} ${diffNames[diffKey] || 'Médio'}</span>`;
 
-            const medals = ['🥇', '🥈', '🥉'];
-            const rankCell = medals[idx] ? `<span class="rank-medal">${medals[idx]}</span>` : `${idx + 1}º`;
-            tr.innerHTML = `
-                <td>${rankCell}</td>
-                <td>${row.name}</td>
-                <td>${diffBadge}</td>
-                <td>${row.score} pts</td>
-                <td class="details-btn-cell">🔍 Detalhes</td>
-            `;
+                const medals = ['🥇', '🥈', '🥉'];
+                const rankCell = medals[idx] ? `<span class="rank-medal">${medals[idx]}</span>` : `${idx + 1}º`;
+                tr.innerHTML = `
+                    <td>${rankCell}</td>
+                    <td>${row.name}</td>
+                    <td>${diffBadge}</td>
+                    <td>${row.score} pts</td>
+                    <td class="details-btn-cell">🔍 Detalhes</td>
+                `;
 
-            tr.addEventListener('click', () => {
-                this.showPlayerDetails(row);
+                tr.addEventListener('click', () => {
+                    this.showPlayerDetails(row);
+                });
+
+                dom.scoreboardBody.appendChild(tr);
             });
+        }
 
-            dom.scoreboardBody.appendChild(tr);
-        });
-
+        this.hide(dom.nameModal);
         this.hide(dom.levelModal);
         this.hide(dom.resultModal);
         this.hide(dom.playerDetailsModal);

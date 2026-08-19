@@ -33,8 +33,11 @@ export class AudioManager {
     }
 
     playGateSfx(isGood) {
-        const key = isGood ? 'sfx_right' : 'sfx_wrong';
-        this.scene.sound.play(key, { volume: CONFIG.AUDIO.SFX_VOLUME });
+        const sfxVolume = this.volume * (CONFIG.AUDIO.SFX_RATIO !== undefined ? CONFIG.AUDIO.SFX_RATIO : 0.4);
+        if (sfxVolume > 0) {
+            const key = isGood ? 'sfx_right' : 'sfx_wrong';
+            this.scene.sound.play(key, { volume: sfxVolume });
+        }
     }
 
     destroy() {

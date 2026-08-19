@@ -16,6 +16,26 @@ export class SessionManager {
         this.sessionHistory = [];
         this.difficulty = this.loadDifficulty();
         this.progress = this.loadProgress();
+        this.volume = this.loadVolume();
+    }
+
+    loadVolume() {
+        try {
+            const saved = localStorage.getItem(CONFIG.STORAGE_KEYS.VOLUME);
+            return saved !== null ? parseFloat(saved) : CONFIG.AUDIO.DEFAULT_VOLUME;
+        } catch (err) {
+            console.error('Failed to load volume:', err);
+            return CONFIG.AUDIO.DEFAULT_VOLUME;
+        }
+    }
+
+    setVolume(vol) {
+        this.volume = Math.max(0, Math.min(1, vol));
+        try {
+            localStorage.setItem(CONFIG.STORAGE_KEYS.VOLUME, this.volume);
+        } catch (err) {
+            console.error('Failed to save volume:', err);
+        }
     }
 
     loadProgress() {
@@ -128,14 +148,17 @@ export class SessionManager {
 
     saveScoreEntry(reason) {
         const diffConfig = this.getDifficultyConfig();
+        const now = new Date();
+        const formattedDate = `${now.toLocaleDateString('pt-BR')} ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
         const entry = {
-            name: this.playerName,
-            score: this.totalScore,
+            name: this.playerName || 'Jogador',
+            score: this.totalScore || 0,
             reason,
             difficulty: this.difficulty,
             diffName: diffConfig.name,
             diffIcon: diffConfig.icon,
-            date: new Date().toLocaleDateString('pt-BR'),
+            date: formattedDate,
             history: [...this.sessionHistory]
         };
         const board = this.loadScoreboard();

@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script type="module" src="script.js"></script>
+    <link rel="icon" type="image/png" href="src/img/objects/X.png">
     <link rel="stylesheet" href="style.css">
     <title>Carro matemático</title>
 </head>
@@ -13,11 +15,35 @@
         <div class="modal-content name-modal-content">
             <div class="name-modal-icon">🏎️</div>
             <h2>Carro Matemático</h2>
-            <p class="name-modal-subtitle">Digite seu nome para começar</p>
+            <p class="name-modal-subtitle">Digite seu nome e escolha a dificuldade para começar</p>
             <div class="name-input-group">
                 <input type="text" id="playerNameInput" class="name-input" placeholder="Seu nome aqui..." maxlength="20" autocomplete="off" />
             </div>
+
+            <!-- Seletor de Dificuldade no Perfil -->
+            <div class="difficulty-control">
+                <span class="difficulty-title">🎮 Escolha a Dificuldade:</span>
+                <div class="difficulty-options" id="difficultyOptions">
+                    <button type="button" class="btn-diff" data-diff="easy" title="Velocidade reduzida para pensar com calma (80 km/h)">
+                        <span class="diff-icon">🟢</span>
+                        <span class="diff-name">Fácil</span>
+                        <span class="diff-mult">0.8x</span>
+                    </button>
+                    <button type="button" class="btn-diff active" data-diff="medium" title="Ritmo equilibrado clássico (120 km/h)">
+                        <span class="diff-icon">🟡</span>
+                        <span class="diff-name">Médio</span>
+                        <span class="diff-mult">1.0x</span>
+                    </button>
+                    <button type="button" class="btn-diff" data-diff="hard" title="Alta velocidade e bônus de pontuação (200 km/h)">
+                        <span class="diff-icon">🔴</span>
+                        <span class="diff-name">Difícil</span>
+                        <span class="diff-mult">1.2x</span>
+                    </button>
+                </div>
+            </div>
+
             <button id="startSessionBtn" class="btn-primary">▶ Jogar</button>
+            <button id="viewScoreboardBtn" class="btn-secondary" style="margin-top: 10px; width: 100%;">🏆 Ver Placar de Líderes</button>
         </div>
     </div>
 
@@ -28,33 +54,12 @@
                 <h2>Selecionar Fase</h2>
                 <div class="menu-player-info">
                     <span id="menuPlayerName">Jogador</span>
+                    <span id="menuDifficultyBadge" class="diff-badge diff-badge-medium">🟡 Médio</span>
                     <span class="menu-lives" id="menuLives">❤️❤️❤️</span>
                     <span class="menu-total-score" id="menuTotalScore">Total: 0 pts</span>
                 </div>
             </div>
             <div id="levelButtons" class="level-buttons"></div>
-            
-            <!-- Seletor de Dificuldade (Opção B) -->
-            <div class="difficulty-control">
-                <span class="difficulty-title">🎮 Dificuldade:</span>
-                <div class="difficulty-options" id="difficultyOptions">
-                    <button class="btn-diff" data-diff="easy" title="Velocidade reduzida para pensar com calma">
-                        <span class="diff-icon">🟢</span>
-                        <span class="diff-name">Fácil</span>
-                        <span class="diff-mult">0.8x</span>
-                    </button>
-                    <button class="btn-diff active" data-diff="medium" title="Ritmo equilibrado clássico">
-                        <span class="diff-icon">🟡</span>
-                        <span class="diff-name">Médio</span>
-                        <span class="diff-mult">1.0x</span>
-                    </button>
-                    <button class="btn-diff" data-diff="hard" title="Alta velocidade e bônus de pontuação">
-                        <span class="diff-icon">🔴</span>
-                        <span class="diff-name">Difícil</span>
-                        <span class="diff-mult">1.2x</span>
-                    </button>
-                </div>
-            </div>
 
             <div class="volume-control">
                 <span>🔊 Volume:</span>
@@ -182,8 +187,11 @@
                     <tbody id="scoreboardBody"></tbody>
                 </table>
             </div>
-            <button id="newPlayerBtn" class="btn-primary" style="margin-top:24px; width:100%;">👤 Novo Jogador</button>
-            <button id="resetScoreboardBtn" class="btn-reset-scoreboard">🗑️ Resetar Placar</button>
+            <div class="scoreboard-actions">
+                <button id="newPlayerBtn" class="btn-primary">👤 Novo Jogador</button>
+                <button id="exportXlsxBtn" class="btn-export-xlsx">📥 Exportar para Excel (.xlsx)</button>
+                <button id="resetScoreboardBtn" class="btn-reset-scoreboard">🗑️ Resetar Placar</button>
+            </div>
         </div>
     </div>
 
@@ -195,7 +203,10 @@
                 <p id="detailsPlayerSummary" class="details-summary"></p>
             </div>
             <div id="detailsLevelHistory" class="details-history-list"></div>
-            <button id="closeDetailsBtn" class="btn-primary" style="margin-top:20px; width:100%;">Voltar ao Placar</button>
+            <div class="player-details-actions" style="display:flex; gap:12px; margin-top:20px;">
+                <button id="exportSinglePlayerXlsxBtn" class="btn-export-xlsx" style="margin-top:0; flex:1;">📥 Baixar XLSX</button>
+                <button id="closeDetailsBtn" class="btn-primary" style="margin-top:0; flex:1;">Voltar ao Placar</button>
+            </div>
         </div>
     </div>
 

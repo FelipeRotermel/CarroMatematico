@@ -40,7 +40,8 @@ export const CONFIG = Object.freeze({
     },
     AUDIO: {
         DEFAULT_VOLUME: 0.5,
-        SFX_VOLUME: 0.24
+        SFX_VOLUME: 0.24,
+        SFX_RATIO: 0.4 // Redução de 60% em relação ao volume mestre
     },
     DIFFICULTY: {
         easy: {
