@@ -1326,6 +1326,11 @@ html, body {
     box-shadow: 0 0 6px rgba(61, 220, 151, 0.4);
 }
 
+.opt-pill.opt-partial.chosen {
+    border-color: #f9d342;
+    box-shadow: 0 0 6px rgba(249, 211, 66, 0.4);
+}
+
 .opt-pill.opt-bad.chosen {
     border-color: #ff6b6b;
     box-shadow: 0 0 6px rgba(255, 107, 107, 0.4);

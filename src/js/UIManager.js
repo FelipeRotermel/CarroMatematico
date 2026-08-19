@@ -609,7 +609,14 @@ export class UIManager {
                                 else if (opt.type === 'div') optSym = '/';
                                 const isChosen = opt.lane === h.lane;
                                 const isOptPositive = opt.type === 'add' || opt.type === 'mul';
-                                return `<span class="opt-pill ${isChosen ? 'chosen' : ''} ${isOptPositive ? 'opt-good' : 'opt-bad'}">${opt.laneName}: ${optSym}${opt.value}</span>`;
+                                // Pill escolhido usa cor da qualidade da decisão; não-escolhidos usam cor do tipo
+                                let colorClass;
+                                if (isChosen) {
+                                    colorClass = quality === 'best' ? 'opt-good' : (quality === 'partial' ? 'opt-partial' : 'opt-bad');
+                                } else {
+                                    colorClass = isOptPositive ? 'opt-good' : 'opt-bad';
+                                }
+                                return `<span class="opt-pill ${isChosen ? 'chosen' : ''} ${colorClass}">${opt.laneName}: ${optSym}${opt.value}</span>`;
                             }).join(' ');
                             optionsHtml = `<div class="decision-options-track"><span class="options-lbl">Opções na pista:</span> ${optPills}</div>`;
                         }
