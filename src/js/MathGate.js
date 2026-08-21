@@ -118,27 +118,28 @@ export class MathGateItem extends Phaser.GameObjects.Container {
 
         this.setVisible(true);
         const proj = road.project(relZ, width, height);
+        const scaleFactor = height / 1440;
 
         if (this.gateData.type === 'finish') {
             this.setPosition(width / 2, proj.screenY);
             this.setScale(1);
 
             const lineWidth = Math.max(10, proj.roadW * 1.4);
-            const lineHeight = Math.max(4, 12 * proj.scale);
+            const lineHeight = Math.max(4, 12 * proj.scale * scaleFactor);
             this.finishLine.setSize(lineWidth, lineHeight);
             this.finishLine.setDisplaySize(lineWidth, lineHeight);
 
-            this.finishTop.setScale(proj.scale);
-            this.finishTop.setY(-25 * proj.scale - lineHeight);
+            this.finishTop.setScale(proj.scale * scaleFactor);
+            this.finishTop.setY(-25 * proj.scale * scaleFactor - lineHeight);
 
-            this.finishBottom.setScale(proj.scale);
-            this.finishBottom.setY(25 * proj.scale + lineHeight);
+            this.finishBottom.setScale(proj.scale * scaleFactor);
+            this.finishBottom.setY(25 * proj.scale * scaleFactor + lineHeight);
 
             this.setAlpha(this.alphaVal);
             this.setDepth(1000 - relZ);
         } else {
-            const finalScale = proj.scale * this.scaleVal;
-            const x = road.laneFloatToPixels(this.gateData.lane, width, proj.roadW);
+            const finalScale = proj.scale * this.scaleVal * scaleFactor;
+            const x = road.laneFloatToPixels(this.gateData.lane, width, proj.roadW, height);
             this.setPosition(x, proj.screenY);
             this.setScale(finalScale);
             this.setAlpha(this.alphaVal);

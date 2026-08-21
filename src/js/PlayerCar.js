@@ -7,7 +7,7 @@ import { CONFIG } from './Config.js';
 
 export class PlayerCar extends Phaser.GameObjects.Sprite {
     constructor(scene) {
-        super(scene, 0, 0, 'player_forward');
+        super(scene, 0, 0, 'foward1');
         this.scene.add.existing(this);
         this.setDisplaySize(450, 300);
         this.setDepth(1500);
@@ -111,24 +111,31 @@ export class PlayerCar extends Phaser.GameObjects.Sprite {
     }
 
     updateVisuals(road, width, height, time, isRunning) {
-        const px = road.laneFloatToPixels(this.lanePos, width);
-        const py = height - 180;
+        // Scale car proportionally to height (1440p QHD reference)
+        const scaleFactor = height / 1440;
+        const carW = 450 * scaleFactor;
+        const carH = 300 * scaleFactor;
+        this.setDisplaySize(carW, carH);
+        this.halfCollisionWidth = 110 * scaleFactor;
+
+        const px = road.laneFloatToPixels(this.lanePos, width, undefined, height);
+        const py = height - 180 * scaleFactor;
 
         let jiggle = 0;
         if (isRunning) {
             const speedFactor = this.velocity / this.maxNormalSpeed;
-            jiggle = Math.sin(time * 0.08) * 1.5 * speedFactor;
+            jiggle = Math.sin(time * 0.08) * 1.5 * speedFactor * scaleFactor;
         }
         this.setPosition(px, py + jiggle);
 
         // Render shadow
-        const shadowY = py + 50;
+        const shadowY = py + 50 * scaleFactor;
         const g = road.graphics;
         g.fillStyle(0x000000, 0.5);
         g.save();
         g.translateCanvas(px, shadowY);
         g.scaleCanvas(1, 0.4);
-        g.fillCircle(0, 0, 90);
+        g.fillCircle(0, 0, 90 * scaleFactor);
         g.restore();
 
         // Determine animation
@@ -153,6 +160,7 @@ export class PlayerCar extends Phaser.GameObjects.Sprite {
             this.anims.stop();
             const mapFrame = { anim_forward: 'foward1', anim_left: 'left1', anim_right: 'right1' };
             this.setTexture(mapFrame[animKey] || 'foward1');
+            this.setDisplaySize(carW, carH);
         }
     }
 }

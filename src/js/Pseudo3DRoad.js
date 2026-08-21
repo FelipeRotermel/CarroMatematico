@@ -16,12 +16,16 @@ export class Pseudo3DRoad {
         this.curProj = { screenY: 0, scale: 0, roadW: 0, horizonY: 0 };
     }
 
-    getRoadWidth(width) {
-        return Math.min(width * CONFIG.ROAD.WIDTH_FACTOR, CONFIG.ROAD.MAX_WIDTH);
+    getRoadWidth(width, height) {
+        // In QHD (2560x1440), road width was 1500px (= 1440 * 1500/1440).
+        // Scaling road width proportionally with height ensures identical road perspective across QHD, FullHD, HD.
+        const h = height || (width ? width * (9 / 16) : 1440);
+        const roadW = h * (1500 / 1440);
+        return Math.min(roadW, width * 0.95);
     }
 
-    laneFloatToPixels(laneFloat, width, roadW) {
-        const rw = roadW !== undefined ? roadW : this.getRoadWidth(width);
+    laneFloatToPixels(laneFloat, width, roadW, height) {
+        const rw = roadW !== undefined ? roadW : this.getRoadWidth(width, height);
         return width / 2 + (laneFloat - 1) * CONFIG.ROAD.LANE_SPACING * rw;
     }
 
@@ -33,7 +37,7 @@ export class Pseudo3DRoad {
 
         out.screenY = horizonY + (height - horizonY) * scale;
         out.scale = scale;
-        out.roadW = this.getRoadWidth(width) * scale;
+        out.roadW = this.getRoadWidth(width, height) * scale;
         out.horizonY = horizonY;
         return out;
     }

@@ -201,8 +201,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     checkCollisions(width, height) {
-        const playerX = this.road.laneFloatToPixels(this.player.lanePos, width);
-        const playerY = height - 180;
+        const scaleFactor = height / 1440;
+        const playerX = this.road.laneFloatToPixels(this.player.lanePos, width, undefined, height);
+        const playerY = height - 180 * scaleFactor;
         const playerHalfW = this.player.halfCollisionWidth;
 
         for (const gate of this.gateManager.activeGates) {
@@ -217,12 +218,12 @@ export class MainScene extends Phaser.Scene {
             } else {
                 if (!gate.disappearing && relZ < 600) {
                     const proj = this.road.project(relZ, width, height);
-                    const itemX = this.road.laneFloatToPixels(gate.lane, width, proj.roadW);
+                    const itemX = this.road.laneFloatToPixels(gate.lane, width, proj.roadW, height);
                     const itemY = proj.screenY;
-                    const itemHalfW = (CONFIG.GAMEPLAY.ITEM_ICON_SIZE * proj.scale) / 2;
+                    const itemHalfW = (CONFIG.GAMEPLAY.ITEM_ICON_SIZE * proj.scale * scaleFactor) / 2;
 
                     const horizontalOverlap = Math.abs(playerX - itemX) < (playerHalfW + itemHalfW);
-                    const verticalOverlap = (itemY >= playerY + 60) && (itemY <= playerY + 140);
+                    const verticalOverlap = (itemY >= playerY + 60 * scaleFactor) && (itemY <= playerY + 140 * scaleFactor);
 
                     if (horizontalOverlap && verticalOverlap) {
                         this.applyGateHit(gate);
