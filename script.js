@@ -1,21 +1,29 @@
+import { Game } from "./src/js/Game.js";
+
 /**
- * script.js - Game Entry Point & Phaser Bootstrapper
+ * Application Entry Point & Bootstrapper for "Carro Matemático"
  */
+function initGame() {
+    if (window.gameApp) {
+        return;
+    }
 
-import * as Phaser from 'https://esm.run/phaser@3.80.1';
-import { MainScene } from './src/js/MainScene.js';
+    try {
+        const app = new Game();
 
-const gameConfig = {
-    type: Phaser.AUTO,
-    parent: 'game',
-    backgroundColor: '#0e1224',
-    scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: '100%',
-        height: '100%'
-    },
-    scene: [MainScene]
-};
+        window.gameApp = app;
+        window.game = app;
+    } catch (err) {
+        const status = document.getElementById("bootStatus");
 
-export const game = new Phaser.Game(gameConfig);
+        if (status) {
+            status.classList.remove("hidden");
+        }
+    }
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initGame);
+} else {
+    initGame();
+}

@@ -1,5 +1,10 @@
 {
-  "dependencies": {
-    "phaser": "^4.0.0"
-  }
+    "type": "module",
+    "dependencies": {
+        "phaser": "^4.0.0"
+    },
+    "devDependencies": {
+        "jsdom": "^29.1.1",
+        "three": "^0.186.0"
+    }
 }
