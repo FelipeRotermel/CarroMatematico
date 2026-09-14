@@ -639,10 +639,6 @@ tbody tr.clickable:hover {
     margin-top: 6px;
 }
 
-#passwordError {
-    color: var(--bad);
-}
-
 @media (pointer: coarse), (max-width: 700px) {
     .touch-controls {
         display: flex;

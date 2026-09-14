@@ -63,7 +63,6 @@ export const GAME_CONSTANTS = Object.freeze({
     BRAKING_RATE: 110,
     NATURAL_DECEL_RATE: 45,
     STEERING_SPEED: 18,
-    SECURITY_PIN: "0451",
     STORAGE_SCOREBOARD_KEY: "carro_scoreboard",
     STORAGE_VOLUME_KEY: "gameVolume",
     STORAGE_DIFFICULTY_KEY: "gameDifficulty",

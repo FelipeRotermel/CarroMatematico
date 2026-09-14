@@ -145,21 +145,16 @@ export class UIManager {
         };
 
         this.$("resetScoreboardBtn").onclick = () => {
-            this.$("passwordInput").value = "";
-            this.$("passwordError").textContent = "";
-            this.setModal("passwordModal");
+            this.setModal("confirmResetModal");
         };
 
-        this.$("passwordCancelBtn").onclick = () => this.setModal("scoreboardModal");
-        this.$("passwordForm").onsubmit = (event) => {
-            event.preventDefault();
+        this.$("confirmResetCancelBtn").onclick = () => {
+            this.setModal("scoreboardModal");
+        };
 
-            if (this.$("passwordInput").value === "0451") {
-                this.game.session.resetBoard();
-                this.showScoreboard();
-            } else {
-                this.$("passwordError").textContent = "❌ Senha incorreta";
-            }
+        this.$("confirmResetSubmitBtn").onclick = () => {
+            this.game.session.resetBoard();
+            this.showScoreboard();
         };
     }
 

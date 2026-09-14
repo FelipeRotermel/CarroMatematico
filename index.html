@@ -306,32 +306,27 @@
         </section>
 
         <section
-            id="passwordModal"
+            id="confirmResetModal"
             class="modal hidden"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="passwordTitle"
+            aria-labelledby="confirmResetTitle"
         >
-            <form id="passwordForm" class="modal-content">
-                <h2 id="passwordTitle">🔒 Acesso Restrito</h2>
-                <p>Digite a senha para resetar o placar</p>
-                <input
-                    id="passwordInput"
-                    class="name-input"
-                    type="password"
-                    placeholder="••••"
-                    aria-label="Senha"
-                    maxlength="10"
-                    autocomplete="off"
-                />
-                <p id="passwordError" role="alert"></p>
-                <div class="modal-buttons">
-                    <button type="button" id="passwordCancelBtn">
+            <div class="modal-content">
+                <h2 id="confirmResetTitle">⚠️ Resetar Placar de Líderes</h2>
+                <p>Tem certeza que deseja apagar todos os registros do placar?</p>
+                <p class="help" style="color: var(--bad); font-weight: 600;">
+                    Esta ação é irreversível e excluirá todo o histórico de jogadores e estatísticas.
+                </p>
+                <div class="modal-buttons" style="margin-top: 16px;">
+                    <button type="button" id="confirmResetCancelBtn">
                         Cancelar
                     </button>
-                    <button type="submit" class="danger">Confirmar</button>
+                    <button type="button" id="confirmResetSubmitBtn" class="danger">
+                        🗑️ Sim, Resetar Placar
+                    </button>
                 </div>
-            </form>
+            </div>
         </section>
 
         <noscript>Este jogo precisa de JavaScript habilitado.</noscript>
