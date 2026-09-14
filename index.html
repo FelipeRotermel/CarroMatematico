@@ -19,6 +19,7 @@
             href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏎️%3C/text%3E%3C/svg%3E"
         />
         <link rel="stylesheet" href="./style.css" />
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
         <script type="importmap">
             {
                 "imports": {
@@ -263,7 +264,7 @@
                         👤 Novo Jogador
                     </button>
                     <button id="exportGlobalBtn" class="export">
-                        📥 Exportar Placar Global — Excel (.csv)
+                        📥 Exportar Placar Global — Excel (.xlsx)
                     </button>
                     <button id="resetScoreboardBtn" class="danger">
                         🗑️ Resetar Placar
@@ -292,10 +293,10 @@
                 <div id="detailsLevelHistory"></div>
                 <div class="stack">
                     <button id="exportIndividualBtn" class="export">
-                        📥 Exportar Estatísticas Individuais — Excel (.csv)
+                        📥 Exportar Estatísticas Individuais — Excel (.xlsx)
                     </button>
                     <button id="exportReportGlobalBtn" class="export">
-                        📥 Exportar Placar Global — Excel (.csv)
+                        📥 Exportar Placar Global — Excel (.xlsx)
                     </button>
                     <button id="closeDetailsBtn" class="btn-primary">
                         Voltar
